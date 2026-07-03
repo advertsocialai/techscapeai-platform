@@ -2,7 +2,7 @@ import axios from 'axios'
 import type { LoginPayload, LoginResponse, RegisterPayload } from '../types/auth'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+  baseURL: '/api/techscape/v1',
   headers: { 'Content-Type': 'application/json' },
 })
 
