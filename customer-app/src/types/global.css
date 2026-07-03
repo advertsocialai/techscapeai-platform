@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  background: linear-gradient(160deg, #060F26 0%, #0C1E52 28%, #112360 55%, #0B1A44 80%, #060F26 100%);
+  background-attachment: fixed;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.033) 1px, transparent 1px);
+  background-size: 26px 26px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+input, button, select, textarea {
+  font-family: 'Outfit', sans-serif;
+}
+
+input[type="password"] {
+  letter-spacing: 3px;
+}
+
+input[type="password"]::placeholder {
+  letter-spacing: 0;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
