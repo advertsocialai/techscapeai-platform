@@ -24,9 +24,13 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
-backend/venv/
-backend/.venv/
-backend/env/
+# Virtualenvs — any location (backend/, api/, root, etc.)
+venv/
+.venv/
+env/
+**/venv/
+**/.venv/
+**/env/
 backend/.env
 *.egg-info/
 dist/
