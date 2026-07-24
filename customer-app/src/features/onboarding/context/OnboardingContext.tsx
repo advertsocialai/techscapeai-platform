@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import type { PersonalInfoData, AddressData, TermsData } from '../../../types/auth'
 
 interface OnboardingState {
@@ -57,7 +57,18 @@ const defaultState: OnboardingState = {
 const OnboardingContext = createContext<OnboardingContextType | null>(null)
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<OnboardingState>(defaultState)
+  const [state, setState] = useState<OnboardingState>(() => {
+    try {
+      const saved = localStorage.getItem('klara_onboarding_state')
+      return saved ? { ...defaultState, ...JSON.parse(saved) } : defaultState
+    } catch {
+      return defaultState
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem('klara_onboarding_state', JSON.stringify(state))
+  }, [state])
 
   const setPersonalInfo = (data: PersonalInfoData) => {
     setState(prev => ({ ...prev, ...data }))
@@ -75,7 +86,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, ...data }))
   }
 
-  const reset = () => setState(defaultState)
+  const reset = () => {
+    setState(defaultState)
+    localStorage.removeItem('klara_onboarding_state')
+  }
 
   return (
     <OnboardingContext.Provider value={{ ...state, setPersonalInfo, setAddress, setOtpVerified, setTerms, reset }}>

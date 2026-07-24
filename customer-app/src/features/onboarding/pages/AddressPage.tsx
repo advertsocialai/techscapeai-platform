@@ -39,12 +39,50 @@ export default function AddressPage() {
   const [company, setCompany] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
+
   function validate() {
     const e: Record<string, string> = {}
-    if (!streetAddress.trim()) e.streetAddress = 'Street address is required'
-    if (!city.trim()) e.city = 'City is required'
-    if (!state.trim()) e.state = 'State is required'
-    if (!postalCode.trim()) e.postalCode = 'Postal code is required'
+
+    if (!streetAddress.trim()) {
+      e.streetAddress = 'Street address is required'
+    } else if (streetAddress.trim().length < 5 || !/[a-zA-Z]/.test(streetAddress)) {
+      e.streetAddress = 'Enter a complete street address'
+    }
+
+    if (!city.trim()) {
+      e.city = 'City is required'
+    } else if (!/^[a-zA-Z\s'.-]{2,}$/.test(city.trim())) {
+      e.city = 'Enter a valid city name'
+    }
+
+    if (!state.trim()) {
+      e.state = 'State is required'
+    } else if (!/^[a-zA-Z\s'.-]{2,}$/.test(state.trim())) {
+      e.state = 'Enter a valid state name'
+    }
+
+    if (!postalCode.trim()) {
+      e.postalCode = 'Postal code is required'
+    } else if (country === 'IN') {
+      if (!/^[1-9][0-9]{5}$/.test(postalCode.trim())) {
+        e.postalCode = 'Enter a valid 6-digit Indian PIN code'
+      }
+    } else if (country === 'US') {
+      if (!/^\d{5}(-\d{4})?$/.test(postalCode.trim())) {
+        e.postalCode = 'Enter a valid US ZIP code'
+      }
+    } else if (country === 'GB') {
+      if (!/^[A-Za-z]{1,2}\d[A-Za-z\d]?\s?\d[A-Za-z]{2}$/.test(postalCode.trim())) {
+        e.postalCode = 'Enter a valid UK postcode (e.g. SW1A 1AA)'
+      }
+    } else if (country === 'SG') {
+      if (!/^\d{6}$/.test(postalCode.trim())) {
+        e.postalCode = 'Enter a valid 6-digit Singapore postal code'
+      }
+    } else if (country === 'AE') {
+      // UAE has no formal postal code system — accept any non-empty value
+    }
+
     if (!country) e.country = 'Country is required'
     return e
   }

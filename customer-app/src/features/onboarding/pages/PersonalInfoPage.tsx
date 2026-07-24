@@ -38,7 +38,7 @@ function inputStyle(hasValue: boolean): React.CSSProperties {
     border: hasValue ? '1px solid rgba(59,143,232,0.35)' : '1px solid rgba(255,255,255,0.11)',
     borderRadius: 13, padding: '0 46px 0 16px',
     fontSize: 14, color: '#fff', outline: 'none',
-    transition: 'all 0.18s', width: '100%',
+    transition: 'all 0.18s',
   }
 }
 
@@ -61,8 +61,23 @@ export default function PersonalInfoPage() {
     const e: Record<string, string> = {}
     if (!firstName.trim()) e.firstName = 'First name is required'
     if (!lastName.trim()) e.lastName = 'Last name is required'
-    if (!email.trim() || !email.includes('@')) e.email = 'Valid email is required'
-    if (!phone.trim()) e.phone = 'Phone number is required'
+    const freeEmailDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'aol.com', 'protonmail.com', 'live.com', 'rediffmail.com']
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!email.trim() || !emailRegex.test(email)) {
+      e.email = 'Please enter a valid email address'
+    } else {
+      const domain = email.split('@')[1]?.toLowerCase()
+      if (freeEmailDomains.includes(domain)) {
+        e.email = 'Please use your business email, not a personal one'
+      }
+    }
+    const phoneDigits = phone.replace(/\D/g, '')
+    const phoneLengths: Record<string, number> = { '+91': 10, '+1': 10, '+44': 10, '+971': 9, '+65': 8 }
+    if (!phone.trim()) {
+      e.phone = 'Phone number is required'
+    } else if (phoneDigits.length !== phoneLengths[countryCode]) {
+      e.phone = `Enter a valid ${phoneLengths[countryCode]}-digit phone number`
+    }
     if (password.length < 8) e.password = 'Password must be at least 8 characters'
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match'
     return e
@@ -72,6 +87,7 @@ export default function PersonalInfoPage() {
     const e = validate()
     if (Object.keys(e).length > 0) { setErrors(e); return }
     setPersonalInfo({ firstName, lastName, email, phone, countryCode, password })
+    localStorage.setItem('klara_otp_email', email)
     navigate('/onboarding/address')
   }
 

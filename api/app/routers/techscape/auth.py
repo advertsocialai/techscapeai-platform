@@ -14,6 +14,8 @@ Auth router for TechScape:
 from __future__ import annotations
 import secrets
 import time
+import traceback
+import logging
 from typing import Optional
 from urllib.parse import urlencode
 from uuid import UUID
@@ -33,10 +35,13 @@ from app.services.techscape.audit import write_audit
 from ._deps import require_business
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 # ── DTOs ──────────────────────────────────────────────────────────
 class RegisterBusinessIn(BaseModel):
+    model_config = {"extra": "ignore"}
+
     business_name: str = Field(min_length=1, max_length=255)
     contact_email: EmailStr
     contact_phone: Optional[str] = None
@@ -46,6 +51,9 @@ class RegisterBusinessIn(BaseModel):
     user_first_name: Optional[str] = None
     user_last_name:  Optional[str] = None
     user_password: str = Field(min_length=8, max_length=200)
+    terms_accepted_at: Optional[str] = None
+    terms_version: Optional[str] = None
+    marketing_opt_in: Optional[bool] = False
 
 
 class LoginIn(BaseModel):
@@ -98,37 +106,42 @@ def _consume_reset_token(token: str) -> Optional[str]:
 @router.post("/register-business", status_code=status.HTTP_201_CREATED)
 def register_business(payload: RegisterBusinessIn, request: Request):
     svc = BusinessService()
+    try:
+        if svc.find_user_by_email(str(payload.contact_email)):
+            raise HTTPException(status.HTTP_409_CONFLICT, "User already exists")
 
-    if svc.find_user_by_email(str(payload.contact_email)):
-        raise HTTPException(status.HTTP_409_CONFLICT, "User already exists")
-
-    biz_data = {
-        "name":          payload.business_name,
-        "contact_email": str(payload.contact_email),
-        "contact_phone": payload.contact_phone,
-        "industry":      payload.industry,
-        "website_url":   payload.website_url,
-        "timezone":      payload.timezone,
-    }
-    biz = svc.create(biz_data)
-    user = svc.create_user(
-        business_id=UUID(biz["id"]),
-        email=str(payload.contact_email),
-        password=payload.user_password,
-        first_name=payload.user_first_name,
-        last_name=payload.user_last_name,
-        role="admin",
-    )
-    write_audit(
-        business_id=biz["id"], user_id=user["id"], action="business.registered",
-        resource_type="business", resource_id=biz["id"],
-        ip_address=_client_ip(request), user_agent=request.headers.get("user-agent"),
-    )
-    return {
-        "business": {k: v for k, v in biz.items() if k != "api_key_hash"},
-        "user":     {k: v for k, v in user.items() if k != "password_hash"},
-        "api_key":  biz["api_key"],  # plain shown once
-    }
+        biz_data = {
+            "name":          payload.business_name,
+            "contact_email": str(payload.contact_email),
+            "contact_phone": payload.contact_phone,
+            "industry":      payload.industry,
+            "website_url":   payload.website_url,
+            "timezone":      payload.timezone,
+        }
+        biz = svc.create(biz_data)
+        user = svc.create_user(
+            business_id=UUID(biz["id"]),
+            email=str(payload.contact_email),
+            password=payload.user_password,
+            first_name=payload.user_first_name,
+            last_name=payload.user_last_name,
+            role="admin",
+        )
+        write_audit(
+            business_id=biz["id"], user_id=user["id"], action="business.registered",
+            resource_type="business", resource_id=biz["id"],
+            ip_address=_client_ip(request), user_agent=request.headers.get("user-agent"),
+        )
+        return {
+            "business": {k: v for k, v in biz.items() if k != "api_key_hash"},
+            "user":     {k: v for k, v in user.items() if k != "password_hash"},
+            "api_key":  biz["api_key"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/login", response_model=TokenOut)
@@ -204,7 +217,6 @@ def rotate_api_key(principal: dict = Depends(require_business)):
 def password_forgot(payload: PasswordForgotIn):
     svc = BusinessService()
     user = svc.find_user_by_email(str(payload.email))
-    # do not leak whether the email exists
     token = _issue_reset_token(user["id"]) if user else None
     if settings.DEBUG and token:
         return {"ok": True, "reset_token": token}
@@ -223,7 +235,58 @@ def password_reset(payload: PasswordResetIn, request: Request):
     return {"ok": True}
 
 
-# ── Google OAuth (auth-code flow) ─────────────────────────────────
+_OTP_TTL_SEC = 5 * 60
+_otp_tokens: dict[str, tuple[str, float]] = {}
+
+
+def _issue_otp(email: str) -> str:
+    code = str(secrets.randbelow(900000) + 100000)
+    _otp_tokens[email] = (code, time.monotonic() + _OTP_TTL_SEC)
+    return code
+
+
+def _verify_otp(email: str, code: str) -> bool:
+    rec = _otp_tokens.get(email)
+    if not rec:
+        return False
+    stored_code, expires_at = rec
+    if time.monotonic() > expires_at:
+        _otp_tokens.pop(email, None)
+        return False
+    if stored_code != code:
+        return False
+    _otp_tokens.pop(email, None)
+    return True
+
+
+class OtpSendIn(BaseModel):
+    email: EmailStr
+
+
+class OtpVerifyIn(BaseModel):
+    email: EmailStr
+    code: str
+
+
+@router.post("/otp/send")
+def otp_send(payload: OtpSendIn):
+    code = _issue_otp(str(payload.email))
+    if settings.DEBUG:
+        return {"ok": True, "code": code}
+    return {"ok": True}
+
+
+@router.post("/otp/verify")
+def otp_verify(payload: OtpVerifyIn):
+    valid = _verify_otp(str(payload.email), payload.code)
+    if not valid:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Invalid or expired OTP"
+        )
+    return {"ok": True, "verified": True}
+
+
 GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USER_URL  = "https://openidconnect.googleapis.com/v1/userinfo"
@@ -283,7 +346,6 @@ async def google_oauth_callback(code: str = Query(...),
     svc = BusinessService()
     user = svc.find_user_by_email(email)
     if not user:
-        # auto-provision a single-user business
         biz = svc.create({
             "name":          email.split("@")[0],
             "contact_email": email,
@@ -292,7 +354,7 @@ async def google_oauth_callback(code: str = Query(...),
         user = svc.create_user(
             business_id=UUID(biz["id"]),
             email=email,
-            password=secrets.token_urlsafe(24),  # placeholder; user logs in via Google
+            password=secrets.token_urlsafe(24),
             first_name=info.get("given_name"),
             last_name=info.get("family_name"),
             role="admin",
@@ -304,7 +366,6 @@ async def google_oauth_callback(code: str = Query(...),
                     expires_in_min=settings.JWT_ACCESS_TTL_MIN)
 
 
-# ── helpers ───────────────────────────────────────────────────────
 def _client_ip(request: Request) -> Optional[str]:
     h = request.headers
     return h.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else None)

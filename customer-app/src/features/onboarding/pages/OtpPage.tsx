@@ -24,9 +24,10 @@ export default function OtpPage() {
 
   // Auto-send OTP on mount
   useEffect(() => {
-    if (email) {
-      authApi.sendOtp(email).catch(() => {})
-    }
+    const otpEmail = email || localStorage.getItem('klara_otp_email') || ''
+    if (otpEmail) {
+      authApi.sendOtp(otpEmail).catch(() => {})
+   }
     inputRefs.current[0]?.focus()
   }, [])
 
@@ -43,14 +44,14 @@ export default function OtpPage() {
 
   function handleDigitChange(value: string, idx: number) {
     const val = value.replace(/\D/g, '')
-    if (!val) return
     const newDigits = [...digits]
-    newDigits[idx] = val[0]
+    newDigits[idx] = val ? val[val.length - 1] : ''
     setDigits(newDigits)
     setError('')
-    if (idx < 5) inputRefs.current[idx + 1]?.focus()
+    if (val && idx < 5) inputRefs.current[idx + 1]?.focus()
   }
 
+  
   function handleKeyDown(e: React.KeyboardEvent, idx: number) {
     if (e.key === 'Backspace') {
       const newDigits = [...digits]
