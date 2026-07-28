@@ -271,6 +271,24 @@ class OtpVerifyIn(BaseModel):
 @router.post("/otp/send")
 def otp_send(payload: OtpSendIn):
     code = _issue_otp(str(payload.email))
+
+    if settings.RESEND_API_KEY:
+        try:
+            resp = httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                json={
+                    "from": f"Klara <{settings.FROM_EMAIL}>",
+                    "to": [str(payload.email)],
+                    "subject": "Your Klara verification code",
+                    "html": f"<p>Your verification code is: <strong>{code}</strong></p><p>This code expires in 5 minutes.</p>",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+        except Exception:
+            traceback.print_exc()
+
     if settings.DEBUG:
         return {"ok": True, "code": code}
     return {"ok": True}

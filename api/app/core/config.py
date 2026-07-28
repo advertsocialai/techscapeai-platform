@@ -36,6 +36,7 @@ class Settings(BaseSettings):
 
     # Email (optional — for contact form notifications)
     SENDGRID_API_KEY: str = ""
+    RESEND_API_KEY: str = ""
     NOTIFICATION_EMAIL: str = "hello@techscapeai.com"
     FROM_EMAIL: str = "noreply@techscapeai.com"
 
