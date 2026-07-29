@@ -1,0 +1,8 @@
+@'
+{
+  "buildCommand": "cd customer-app && npm run build",
+  "outputDirectory": "customer-app/dist",
+  "installCommand": "cd customer-app && npm install",
+  "framework": "vite"
+}
+'@ | Out-File -FilePath vercel.json -Encoding utf8
