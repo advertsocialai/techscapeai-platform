@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState } from 'react'
+import type { ReactNode } from 'react'
 import type { PersonalInfoData, AddressData, TermsData } from '../../../types/auth'
 
 interface OnboardingState {
