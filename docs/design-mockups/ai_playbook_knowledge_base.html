@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Playbook — Knowledge Base Screens</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script>
+var CUR = 0;
+var TOTAL = 4;
+function GO(n){
+  if(n===CUR||n<0||n>=TOTAL) return;
+  document.getElementById('S'+CUR).style.display='none';
+  document.getElementById('S'+n).style.display='flex';
+  document.getElementById('P'+CUR).classList.remove('cur');
+  document.getElementById('P'+n).classList.add('cur');
+  CUR=n;
+}
+function toggleDD(id){var el=document.getElementById(id);var open=el.classList.contains('open');document.querySelectorAll('.dd-menu.open').forEach(function(m){m.classList.remove('open');});if(!open)el.classList.add('open');}
+window.onload=function(){
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('.dd-wrap')) document.querySelectorAll('.dd-menu.open').forEach(function(m){m.classList.remove('open');});
+    var tog=e.target.closest('.toggle'); if(tog) tog.classList.toggle('off');
+  });
+};
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{font-family:'Outfit',sans-serif;background:#060810;}
+.proto{display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:10px;}
+.top-nav{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:1300px;}
+.pill{font-family:'Outfit',sans-serif;font-size:10px;font-weight:700;padding:5px 10px;border-radius:100px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.3);cursor:pointer;}
+.pill.cur{background:#10B981;border-color:#10B981;color:#fff;}
+.browser{width:1280px;height:800px;border-radius:12px;overflow:hidden;border:1.5px solid rgba(255,255,255,0.1);position:relative;flex-shrink:0;}
+.browser-bar{height:38px;background:#1a1d24;display:flex;align-items:center;padding:0 14px;gap:8px;border-bottom:1px solid rgba(255,255,255,0.07);}
+.dot{width:10px;height:10px;border-radius:50%;}
+.url-bar{flex:1;height:22px;background:rgba(255,255,255,0.06);border-radius:6px;margin:0 12px;display:flex;align-items:center;padding:0 10px;}
+.url-txt{font-size:10px;color:rgba(255,255,255,0.35);}
+.s{position:absolute;top:38px;left:0;right:0;bottom:0;display:none;overflow:hidden;}
+.sidebar{width:220px;height:100%;background:#0A0D14;border-right:1px solid rgba(255,255,255,0.07);display:flex;flex-direction:column;flex-shrink:0;}
+.logo-area{padding:18px 16px;border-bottom:1px solid rgba(255,255,255,0.07);}
+.logo-name{font-size:15px;font-weight:700;color:#fff;}
+.logo-sub{font-size:9px;color:rgba(16,185,129,0.7);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+.nav-section{padding:14px 12px 6px;}
+.nav-label{font-size:9px;font-weight:700;color:rgba(255,255,255,0.2);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;padding-left:4px;}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:none;background:transparent;width:100%;text-align:left;}
+.nav-item:hover{background:rgba(255,255,255,0.05);}
+.nav-item.active{background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.2);}
+.nav-item span{font-size:12px;font-weight:500;color:rgba(255,255,255,0.45);}
+.nav-item.active span{color:#10B981;font-weight:600;}
+.sidebar-bottom{margin-top:auto;padding:12px;border-top:1px solid rgba(255,255,255,0.07);}
+.agent-pill{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:8px;}
+.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;}
+.main{flex:1;overflow-y:auto;background:#0F1117;}
+.main::-webkit-scrollbar{width:4px;}
+.main::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px;}
+.topbar{height:52px;background:#0F1117;border-bottom:1px solid rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:space-between;padding:0 24px;flex-shrink:0;}
+.page-title{font-size:16px;font-weight:700;color:#fff;}
+.page-sub{font-size:11px;color:rgba(255,255,255,0.35);margin-top:1px;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.content{padding:20px 24px;flex:1;}
+.card{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:16px;}
+.stat{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:18px;position:relative;overflow:hidden;}
+.stat-val{font-size:28px;font-weight:800;color:#fff;line-height:1;}
+.stat-label{font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;}
+.stat-change{font-size:10px;font-weight:600;margin-top:8px;}
+.stat-glow{position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;}
+.t1{font-size:18px;font-weight:700;color:#fff;}
+.t2{font-size:14px;font-weight:600;color:#fff;}
+.t3{font-size:12px;color:rgba(255,255,255,0.45);}
+.t4{font-size:10px;font-weight:700;color:rgba(255,255,255,0.25);letter-spacing:.8px;text-transform:uppercase;}
+.tg{color:#10B981;} .ta{color:#F59E0B;} .tr{color:#EF4444;} .tb{color:#3B82F6;}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:100px;padding:3px 9px;font-size:9.5px;font-weight:700;}
+.bg{background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.25);color:#10B981;}
+.ba{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);color:#F59E0B;}
+.br{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.25);color:#EF4444;}
+.bb{background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.25);color:#3B82F6;}
+.bp{background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.25);color:#8B5CF6;}
+.bw{background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.6);}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:none;}
+.btn-g{background:linear-gradient(135deg,#10B981,#059669);color:#fff;}
+.btn-b{background:linear-gradient(135deg,#3B82F6,#1D4ED8);color:#fff;}
+.btn-a{background:linear-gradient(135deg,#F59E0B,#D97706);color:#fff;}
+.btn-r{background:linear-gradient(135deg,#EF4444,#DC2626);color:#fff;}
+.btn-p{background:linear-gradient(135deg,#8B5CF6,#6D28D9);color:#fff;}
+.btn-ghost{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.table{width:100%;border-collapse:collapse;}
+.table th{font-size:10px;font-weight:700;color:rgba(255,255,255,0.25);letter-spacing:.8px;text-transform:uppercase;padding:10px 14px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.06);}
+.table td{font-size:12px;color:rgba(255,255,255,0.7);padding:11px 14px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.table tr:hover td{background:rgba(255,255,255,0.02);}
+.dd-wrap{position:relative;display:inline-block;}
+.dd-trigger{display:flex;align-items:center;gap:6px;padding:7px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;cursor:pointer;font-size:11px;font-weight:500;color:rgba(255,255,255,0.7);}
+.dd-menu{position:absolute;top:calc(100% + 4px);left:0;min-width:170px;background:#1a1d24;border:1px solid rgba(255,255,255,0.12);border-radius:9px;padding:5px;z-index:999;display:none;}
+.dd-menu.open{display:block;}
+.dd-item{padding:8px 10px;border-radius:6px;font-size:11px;color:rgba(255,255,255,0.65);cursor:pointer;}
+.dd-item:hover{background:rgba(16,185,129,0.1);color:#10B981;}
+.inp{height:36px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0 12px;font-size:12px;color:#fff;outline:none;width:100%;}
+.inp::placeholder{color:rgba(255,255,255,0.25);}
+.textarea{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:12px;font-size:12.5px;color:#fff;outline:none;width:100%;font-family:'Outfit',sans-serif;line-height:1.6;resize:vertical;}
+.toggle{width:36px;height:20px;background:rgba(16,185,129,0.8);border-radius:10px;position:relative;cursor:pointer;}
+.toggle-dot{width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:2px;right:2px;transition:all .2s;}
+.toggle.off{background:rgba(255,255,255,0.15);}
+.toggle.off .toggle-dot{right:auto;left:2px;}
+.step-num{width:24px;height:24px;border-radius:50%;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#10B981;flex-shrink:0;}
+.kb-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);margin-bottom:8px;cursor:pointer;}
+.kb-row:hover{border-color:rgba(16,185,129,0.25);}
+.kb-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;}
+.upload-zone{border:1.5px dashed rgba(255,255,255,0.15);border-radius:12px;padding:32px;text-align:center;background:rgba(255,255,255,0.02);cursor:pointer;}
+.upload-zone:hover{border-color:rgba(16,185,129,0.35);background:rgba(16,185,129,0.03);}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:100px;font-size:10.5px;font-weight:600;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.6);}
+.match-bar{height:5px;border-radius:3px;background:rgba(255,255,255,0.08);overflow:hidden;}
+.match-fill{height:100%;border-radius:3px;}
+.approve-diff{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:14px;}
+</style>
+</head>
+<body>
+<div class="proto">
+<div class="top-nav">
+  <div class="pill cur" id="P0" onclick="GO(0)">📚 Knowledge Base</div>
+  <div class="pill" id="P1" onclick="GO(1)">✍️ Entry Editor</div>
+  <div class="pill" id="P2" onclick="GO(2)">✅ Approval Queue</div>
+  <div class="pill" id="P3" onclick="GO(3)">🔍 Search Tester</div>
+</div>
+
+<div class="browser">
+<div class="browser-bar">
+  <div class="dot" style="background:#FF5F57;"></div><div class="dot" style="background:#FEBC2E;"></div><div class="dot" style="background:#28C840;"></div>
+  <div class="url-bar"><span class="url-txt">agency.gogaga.ai/playbook/knowledge-base</span></div>
+</div>
+
+<!-- SCREEN 1: KNOWLEDGE BASE LIST -->
+<div class="s" id="S0" style="display:flex;">
+  <div class="sidebar">
+    <div class="logo-area"><div class="logo-name">GoGaga</div><div class="logo-sub">Agency Platform</div></div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="nav-section"><div class="nav-label">Settings</div>
+        <div class="nav-item"><span>⚙️ AI Behavior</span></div>
+      </div>
+      <div class="nav-section"><div class="nav-label">Knowledge</div>
+        <div class="nav-item active" onclick="GO(0)"><span>📚 Knowledge Base</span></div>
+        <div class="nav-item" onclick="GO(1)"><span>✍️ Entry Editor</span></div>
+        <div class="nav-item" onclick="GO(2)"><span>✅ Approval Queue <span class="badge br" style="margin-left:4px;font-size:8px;">3</span></span></div>
+        <div class="nav-item" onclick="GO(3)"><span>🔍 Search Tester</span></div>
+      </div>
+    </div>
+    <div class="sidebar-bottom"><div class="agent-pill"><div class="avatar" style="background:linear-gradient(135deg,#10B981,#059669);">GM</div><div><div style="font-size:11px;font-weight:600;color:#fff;">Gowtham</div><div style="font-size:9px;color:rgba(255,255,255,0.35);">Super Admin</div></div></div></div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="page-title">🧠 AI Playbook — Knowledge Base</div><div class="page-sub">Everything your AI agent knows, organized and reviewed</div></div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost">📥 Bulk Import</button>
+        <button class="btn btn-g" onclick="GO(1)">+ New Entry</button>
+      </div>
+    </div>
+    <div class="content">
+      <div class="g4" style="margin-bottom:16px;">
+        <div class="stat"><div class="stat-glow" style="background:radial-gradient(circle,rgba(16,185,129,0.15),transparent);"></div><div class="stat-val">142</div><div class="stat-label">Published entries</div><div class="stat-change tg">✓ Live in AI responses</div></div>
+        <div class="stat"><div class="stat-glow" style="background:radial-gradient(circle,rgba(245,158,11,0.15),transparent);"></div><div class="stat-val">8</div><div class="stat-label">Pending approval</div><div class="stat-change ta">⏳ Awaiting review</div></div>
+        <div class="stat"><div class="stat-glow" style="background:radial-gradient(circle,rgba(59,130,246,0.15),transparent);"></div><div class="stat-val">6</div><div class="stat-label">Categories</div><div class="stat-change tb">📁 Packages · Policies · Visa +3</div></div>
+        <div class="stat"><div class="stat-glow" style="background:radial-gradient(circle,rgba(239,68,68,0.15),transparent);"></div><div class="stat-val">2</div><div class="stat-label">Coverage gaps</div><div class="stat-change tr">⚠ Low-confidence topics</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input class="inp" placeholder="🔍 Search knowledge base…" style="flex:1;">
+          <div class="dd-wrap"><div class="dd-trigger" onclick="toggleDD('dd-cat')">All Categories <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="dd-menu" id="dd-cat"><div class="dd-item">🏝️ Packages & Destinations</div><div class="dd-item">📜 Policies</div><div class="dd-item">🛂 Visa & Documents</div><div class="dd-item">💳 Payments & Refunds</div><div class="dd-item">❓ FAQs</div><div class="dd-item">🏨 Hotels & Stays</div></div>
+          </div>
+          <div class="dd-wrap"><div class="dd-trigger" onclick="toggleDD('dd-stat')">All Status <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg></div>
+            <div class="dd-menu" id="dd-stat"><div class="dd-item">🟢 Published</div><div class="dd-item">🟡 Pending Approval</div><div class="dd-item">⚪ Draft</div><div class="dd-item">🔴 Rejected</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <table class="table">
+          <tr><th>Entry</th><th>Category</th><th>Status</th><th>Author</th><th>Updated</th><th>Retrieved</th><th></th></tr>
+          <tr><td><b style="color:#fff;">Maldives — Sun Siyam Olhuveli Package Details</b></td><td><span class="chip">🏝️ Packages</span></td><td><span class="badge bg">Published</span></td><td>Priya S.</td><td>2 days ago</td><td>47x this week</td><td><button class="btn btn-ghost" style="padding:5px 10px;">Edit</button></td></tr>
+          <tr><td><b style="color:#fff;">Refund Policy — Domestic Packages</b></td><td><span class="chip">💳 Payments</span></td><td><span class="badge bg">Published</span></td><td>Super Admin</td><td>5 days ago</td><td>31x this week</td><td><button class="btn btn-ghost" style="padding:5px 10px;">Edit</button></td></tr>
+          <tr><td><b style="color:#fff;">Visa Requirements — Schengen (from India)</b></td><td><span class="chip">🛂 Visa</span></td><td><span class="badge ba">Pending</span></td><td>Rahul K.</td><td>3 hrs ago</td><td>—</td><td><button class="btn btn-ghost" style="padding:5px 10px;">Review</button></td></tr>
+          <tr><td><b style="color:#fff;">Baggage Allowance — Flight-Inclusive Packages</b></td><td><span class="chip">📜 Policies</span></td><td><span class="badge bg">Published</span></td><td>Priya S.</td><td>1 week ago</td><td>19x this week</td><td><button class="btn btn-ghost" style="padding:5px 10px;">Edit</button></td></tr>
+          <tr><td><b style="color:#fff;">Bali — Honeymoon Package (5N/6D)</b></td><td><span class="chip">🏝️ Packages</span></td><td><span class="badge bw" style="color:rgba(255,255,255,0.4);">Draft</span></td><td>Rahul K.</td><td>2 weeks ago</td><td>—</td><td><button class="btn btn-ghost" style="padding:5px 10px;">Edit</button></td></tr>
+          <tr><td><b style="color:#fff;">Group Booking Discounts (10+ pax)</b></td><td><span class="chip">💳 Payments</span></td><td><span class="badge br">Rejected</span></td><td>Rahul K.</td><td>3 weeks ago</td><td>—</td><td><button class="btn btn-ghost" style="padding:5px 10px;">View</button></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 2: ENTRY EDITOR -->
+<div class="s" id="S1">
+  <div class="sidebar">
+    <div class="logo-area"><div class="logo-name">GoGaga</div><div class="logo-sub">Agency Platform</div></div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="nav-section"><div class="nav-label">Knowledge</div>
+        <div class="nav-item" onclick="GO(0)"><span>📚 Knowledge Base</span></div>
+        <div class="nav-item active" onclick="GO(1)"><span>✍️ Entry Editor</span></div>
+        <div class="nav-item" onclick="GO(2)"><span>✅ Approval Queue</span></div>
+        <div class="nav-item" onclick="GO(3)"><span>🔍 Search Tester</span></div>
+      </div>
+    </div>
+    <div class="sidebar-bottom"><div class="agent-pill"><div class="avatar" style="background:linear-gradient(135deg,#3B82F6,#1D4ED8);">RK</div><div><div style="font-size:11px;font-weight:600;color:#fff;">Rahul K.</div><div style="font-size:9px;color:rgba(255,255,255,0.35);">Agent</div></div></div></div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="page-title">✍️ New Knowledge Entry</div><div class="page-sub">Write manually, or upload a document to auto-draft</div></div>
+      <div class="topbar-right">
+        <button class="btn btn-ghost" onclick="GO(0)">Cancel</button>
+        <button class="btn btn-a">📤 Submit for Approval</button>
+      </div>
+    </div>
+    <div class="content">
+      <div class="g2">
+        <div>
+          <div class="card" style="margin-bottom:14px;">
+            <div class="t2" style="margin-bottom:12px;">📎 Upload Source Document</div>
+            <div class="upload-zone">
+              <div style="font-size:26px;margin-bottom:8px;">📄</div>
+              <div style="font-size:13px;color:#fff;font-weight:600;margin-bottom:4px;">Drop PDF, TXT or JSON here</div>
+              <div class="t3">We'll auto-chunk it into suggested entries for your review</div>
+            </div>
+            <div style="margin-top:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:8px;">
+              <span style="font-size:14px;">📄</span>
+              <div style="flex:1;"><div style="font-size:11.5px;font-weight:600;color:#fff;">Schengen_Visa_Requirements_2026.pdf</div><div class="t3" style="font-size:10px;">3 suggested sections found — review below</div></div>
+              <span class="badge bg" style="font-size:9px;">Parsed</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="t2" style="margin-bottom:10px;">📝 Entry Content</div>
+            <div class="t4" style="margin-bottom:6px;">TITLE</div>
+            <input class="inp" style="margin-bottom:12px;" value="Visa Requirements — Schengen (from India)">
+            <div class="t4" style="margin-bottom:6px;">BODY</div>
+            <textarea class="textarea" rows="9">Indian passport holders travelling to Schengen countries require a Type C Schengen Visa for stays up to 90 days. Required documents: valid passport (6+ months validity), completed application form, 2 recent photographs, travel insurance (min €30,000 coverage), proof of accommodation, return flight bookings, and bank statements (last 3 months). Processing time is typically 15 working days. Apply through the embassy/consulate of the primary destination country, or the country of first entry if visiting multiple Schengen states equally.</textarea>
+          </div>
+        </div>
+        <div>
+          <div class="card" style="margin-bottom:14px;">
+            <div class="t2" style="margin-bottom:12px;">🏷️ Metadata</div>
+            <div class="t4" style="margin-bottom:6px;">CATEGORY</div>
+            <div class="dd-wrap" style="width:100%;margin-bottom:12px;"><div class="dd-trigger" style="width:100%;justify-content:space-between;" onclick="toggleDD('dd-ec')">🛂 Visa & Documents <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg></div>
+              <div class="dd-menu" id="dd-ec"><div class="dd-item">🏝️ Packages & Destinations</div><div class="dd-item">📜 Policies</div><div class="dd-item sel">🛂 Visa & Documents</div><div class="dd-item">💳 Payments & Refunds</div></div>
+            </div>
+            <div class="t4" style="margin-bottom:6px;">TAGS</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+              <span class="chip">schengen ✕</span><span class="chip">europe ✕</span><span class="chip">visa ✕</span>
+              <span class="chip" style="background:transparent;border-style:dashed;cursor:pointer;">+ add tag</span>
+            </div>
+            <div class="t4" style="margin-bottom:6px;">LANGUAGES COVERED</div>
+            <div style="display:flex;gap:6px;">
+              <span class="badge bg">EN ✓</span><span class="badge bw">HI</span><span class="badge bw">TE</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="t2" style="margin-bottom:10px;">👁️ How the AI will see this</div>
+            <div style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.15);border-radius:10px;padding:12px;">
+              <div class="t3" style="font-size:10.5px;margin-bottom:6px;">Sample customer question this would answer:</div>
+              <div style="font-size:12.5px;color:#fff;font-style:italic;">"What documents do I need for a Europe trip?"</div>
+            </div>
+            <div class="t3" style="margin-top:10px;font-size:10.5px;">⚡ As an agent, this entry goes to <b style="color:#F59E0B;">Approval Queue</b> — Super Admin must approve before it's used in live conversations.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 3: APPROVAL QUEUE -->
+<div class="s" id="S2">
+  <div class="sidebar">
+    <div class="logo-area"><div class="logo-name">GoGaga</div><div class="logo-sub">Agency Platform</div></div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="nav-section"><div class="nav-label">Knowledge</div>
+        <div class="nav-item" onclick="GO(0)"><span>📚 Knowledge Base</span></div>
+        <div class="nav-item" onclick="GO(1)"><span>✍️ Entry Editor</span></div>
+        <div class="nav-item active" onclick="GO(2)"><span>✅ Approval Queue</span></div>
+        <div class="nav-item" onclick="GO(3)"><span>🔍 Search Tester</span></div>
+      </div>
+    </div>
+    <div class="sidebar-bottom"><div class="agent-pill"><div class="avatar" style="background:linear-gradient(135deg,#10B981,#059669);">GM</div><div><div style="font-size:11px;font-weight:600;color:#fff;">Gowtham</div><div style="font-size:9px;color:rgba(255,255,255,0.35);">Super Admin</div></div></div></div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="page-title">✅ Approval Queue</div><div class="page-sub">Review agent submissions before they go live in the AI</div></div>
+      <div class="topbar-right"><span class="badge ba">8 awaiting review</span></div>
+    </div>
+    <div class="content">
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="badge ba">Pending</span>
+            <div class="t2">Visa Requirements — Schengen (from India)</div>
+          </div>
+          <div class="t3">Submitted by <b style="color:#fff;">Rahul K.</b> · 3 hrs ago</div>
+        </div>
+        <div class="g2">
+          <div class="approve-diff">
+            <div class="t4" style="margin-bottom:8px;">📥 SUBMITTED CONTENT</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.75);line-height:1.6;">Indian passport holders travelling to Schengen countries require a Type C Schengen Visa for stays up to 90 days. Required documents: valid passport (6+ months validity), completed application form, 2 recent photographs, travel insurance (min €30,000 coverage)...</div>
+          </div>
+          <div class="approve-diff" style="border-color:rgba(16,185,129,0.2);background:rgba(16,185,129,0.03);">
+            <div class="t4" style="margin-bottom:8px;color:rgba(16,185,129,0.6);">✏️ SUPER ADMIN EDIT (optional)</div>
+            <textarea class="textarea" rows="5" placeholder="Leave blank to approve as-is, or refine the wording here before publishing…"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-g">✓ Approve & Publish</button>
+          <button class="btn btn-ghost">✎ Request Changes</button>
+          <button class="btn btn-r">✕ Reject</button>
+          <div style="margin-left:auto;" class="chip">🛂 Visa & Documents</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="badge ba">Pending</span>
+            <div class="t2">Group Booking Discounts — Corporate Travel</div>
+          </div>
+          <div class="t3">Submitted by <b style="color:#fff;">Rahul K.</b> · 1 day ago</div>
+        </div>
+        <div style="margin-top:10px;" class="t3">10+ pax bookings get 8% off package total. Requires PAN + GST for corporate invoicing. Payment split allowed across max 3 installments...</div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-g" style="padding:6px 12px;font-size:11px;">✓ Approve</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px;">✎ Changes</button>
+          <button class="btn btn-r" style="padding:6px 12px;font-size:11px;">✕ Reject</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="badge ba">Pending</span>
+            <div class="t2">Kashmir — Houseboat Stay Package (Dal Lake)</div>
+          </div>
+          <div class="t3">Submitted by <b style="color:#fff;">Priya S.</b> · 2 days ago</div>
+        </div>
+        <div style="margin-top:10px;" class="t3">5N/6D houseboat + Gulmarg + Pahalgam combo. Deluxe houseboat category, all meals included, shikara ride complimentary...</div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-g" style="padding:6px 12px;font-size:11px;">✓ Approve</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px;">✎ Changes</button>
+          <button class="btn btn-r" style="padding:6px 12px;font-size:11px;">✕ Reject</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN 4: SEMANTIC SEARCH TESTER -->
+<div class="s" id="S3">
+  <div class="sidebar">
+    <div class="logo-area"><div class="logo-name">GoGaga</div><div class="logo-sub">Agency Platform</div></div>
+    <div style="overflow-y:auto;flex:1;">
+      <div class="nav-section"><div class="nav-label">Knowledge</div>
+        <div class="nav-item" onclick="GO(0)"><span>📚 Knowledge Base</span></div>
+        <div class="nav-item" onclick="GO(1)"><span>✍️ Entry Editor</span></div>
+        <div class="nav-item" onclick="GO(2)"><span>✅ Approval Queue</span></div>
+        <div class="nav-item active" onclick="GO(3)"><span>🔍 Search Tester</span></div>
+      </div>
+    </div>
+    <div class="sidebar-bottom"><div class="agent-pill"><div class="avatar" style="background:linear-gradient(135deg,#10B981,#059669);">GM</div><div><div style="font-size:11px;font-weight:600;color:#fff;">Gowtham</div><div style="font-size:9px;color:rgba(255,255,255,0.35);">Super Admin</div></div></div></div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <div><div class="page-title">🔍 Semantic Search Tester</div><div class="page-sub">Simulate what the AI retrieves for any customer question</div></div>
+      <div class="topbar-right"><span class="badge bp">🧠 pgvector RAG</span></div>
+    </div>
+    <div class="content">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="t4" style="margin-bottom:8px;">TEST QUESTION</div>
+        <div style="display:flex;gap:10px;">
+          <input class="inp" style="flex:1;height:44px;font-size:13px;" value="What's the refund policy if I cancel my Maldives trip?">
+          <button class="btn btn-p" style="height:44px;padding:0 20px;">🔍 Search</button>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div>
+          <div class="t4" style="margin-bottom:10px;">TOP RETRIEVED CHUNKS</div>
+          <div class="card" style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div style="font-size:12.5px;font-weight:700;color:#fff;">Refund Policy — Domestic Packages</div>
+              <span class="badge bg">91% match</span>
+            </div>
+            <div class="match-bar" style="margin-bottom:8px;"><div class="match-fill" style="width:91%;background:#10B981;"></div></div>
+            <div class="t3" style="font-size:11.5px;line-height:1.6;">"Cancellations made 15+ days before departure receive 90% refund. 7–14 days: 50% refund. Under 7 days: non-refundable except in case of..."</div>
+          </div>
+          <div class="card" style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div style="font-size:12.5px;font-weight:700;color:#fff;">Maldives — Sun Siyam Olhuveli Package Details</div>
+              <span class="badge ba">68% match</span>
+            </div>
+            <div class="match-bar" style="margin-bottom:8px;"><div class="match-fill" style="width:68%;background:#F59E0B;"></div></div>
+            <div class="t3" style="font-size:11.5px;line-height:1.6;">"5 nights, 2 adults, includes flights, water villa, breakfast + dinner, airport transfers. Package total ₹2,38,000..."</div>
+          </div>
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div style="font-size:12.5px;font-weight:700;color:#fff;">Group Booking Discounts (10+ pax)</div>
+              <span class="badge br">31% match</span>
+            </div>
+            <div class="match-bar" style="margin-bottom:8px;"><div class="match-fill" style="width:31%;background:#EF4444;"></div></div>
+            <div class="t3" style="font-size:11.5px;line-height:1.6;">"10+ pax bookings get 8% off package total. Requires PAN + GST for corporate invoicing..."</div>
+          </div>
+        </div>
+        <div>
+          <div class="t4" style="margin-bottom:10px;">AI RESPONSE PREVIEW</div>
+          <div class="card" style="background:rgba(16,185,129,0.05);border-color:rgba(16,185,129,0.15);margin-bottom:14px;">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;"><span style="font-size:16px;">🤖</span><span class="t2">Klara AI would say:</span></div>
+            <div style="font-size:12.5px;color:rgba(255,255,255,0.85);line-height:1.7;">"If you cancel 15+ days before departure, you'll get a 90% refund. Between 7–14 days it's 50%, and under 7 days it's unfortunately non-refundable — except in special cases like medical emergencies. Want me to check your specific booking dates?"</div>
+          </div>
+          <div class="card" style="border-color:rgba(16,185,129,0.15);">
+            <div class="t2" style="margin-bottom:10px;">📊 Coverage Assessment</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <div style="width:44px;height:44px;border-radius:50%;background:conic-gradient(#10B981 0% 91%,rgba(255,255,255,0.08) 91% 100%);display:flex;align-items:center;justify-content:center;position:relative;">
+                <div style="position:absolute;inset:5px;border-radius:50%;background:#0F1117;"></div>
+                <span style="position:relative;font-size:11px;font-weight:800;color:#10B981;">91%</span>
+              </div>
+              <div><div style="font-size:12.5px;font-weight:600;color:#fff;">Strong coverage</div><div class="t3" style="font-size:10.5px;">Top match confidently answers this</div></div>
+            </div>
+            <div style="padding:9px 11px;background:rgba(16,185,129,0.06);border-radius:8px;">
+              <span class="t3" style="font-size:10.5px;">✓ No gap detected — safe to deploy this response in live calls</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+</body>
+</html>
