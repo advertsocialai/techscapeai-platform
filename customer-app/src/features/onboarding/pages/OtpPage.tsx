@@ -18,7 +18,7 @@ export default function OtpPage() {
   const [digits, setDigits] = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [secondsLeft, setSecondsLeft] = useState(165)
+  const [secondsLeft, setSecondsLeft] = useState(300)
   const [resendMsg, setResendMsg] = useState('')
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -94,7 +94,7 @@ export default function OtpPage() {
   }
 
   async function handleResend() {
-    setSecondsLeft(165)
+    setSecondsLeft(300)
     setDigits(['', '', '', '', '', ''])
     setError('')
     setResendMsg('New OTP sent!')
