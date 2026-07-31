@@ -1,4 +1,4 @@
-﻿import axios from "axios"
+import axios from "axios"
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000/api/techscape/v1",
@@ -22,8 +22,13 @@ api.interceptors.response.use(
   }
 )
 
+interface LoginPayload {
+  email: string
+  password: string
+}
+
 export const authApi = {
-  login: (payload) => api.post("/auth/login", payload),
+  login: (payload: LoginPayload) => api.post("/auth/login", payload),
   me: () => api.get("/auth/me"),
 }
 

@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from "react"
-import { wikiApi } from "../../../lib/wikiApi"
+import { useEffect, useState } from "react"
+import { wikiApi, type WikiEntry } from "../../../lib/wikiApi"
 
-const CATEGORY_LABELS = {
+const CATEGORY_LABELS: Record<string, string> = {
   destination: "Destination",
   package: "Package",
   policy: "Policy",
@@ -13,7 +13,7 @@ const CATEGORY_LABELS = {
 }
 
 export default function KnowledgeBasePage() {
-  const [entries, setEntries] = useState([])
+  const [entries, setEntries] = useState<WikiEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
@@ -28,7 +28,7 @@ export default function KnowledgeBasePage() {
     try {
       const res = await wikiApi.list(categoryFilter || undefined)
       setEntries(res.data)
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to load knowledge base")
     } finally {
       setLoading(false)

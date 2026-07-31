@@ -1,7 +1,11 @@
-﻿import { useState } from "react"
+import { useState } from "react"
 import { authApi } from "../../../lib/api"
 
-export default function LoginPage({ onLoginSuccess }) {
+interface LoginPageProps {
+  onLoginSuccess: () => void
+}
+
+export default function LoginPage({ onLoginSuccess }: LoginPageProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -18,7 +22,7 @@ export default function LoginPage({ onLoginSuccess }) {
       const res = await authApi.login({ email, password })
       localStorage.setItem("agency_access_token", res.data.access_token)
       onLoginSuccess()
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.detail || "Login failed")
     } finally {
       setLoading(false)
@@ -62,7 +66,7 @@ export default function LoginPage({ onLoginSuccess }) {
             </div>
           )}
 
-          <label style={{ display: "block", fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
+          <label style={{ display: "block", fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: 0.8, textTransform: "uppercase", marginBottom:6 }}>
             Email
           </label>
           <input
@@ -77,7 +81,7 @@ export default function LoginPage({ onLoginSuccess }) {
             }}
           />
 
-          <label style={{ display: "block", fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>
+          <label style={{ display: "block", fontSize: 9.5, fontWeight: 700, color: "rgba(255,255,255,0.3)", letterSpacing: 0.8, textTransform: "uppercase", marginBottom:6 }}>
             Password
           </label>
           <input

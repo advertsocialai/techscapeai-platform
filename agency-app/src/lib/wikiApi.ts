@@ -1,4 +1,4 @@
-﻿import axios from "axios"
+import axios from "axios"
 
 const travelApi = axios.create({
   baseURL: import.meta.env.VITE_TRAVEL_API_URL || "http://localhost:8000/api/travel/v1",
@@ -11,14 +11,21 @@ travelApi.interceptors.request.use((config) => {
   return config
 })
 
+export interface WikiEntry {
+  id: string
+  title: string
+  category: string
+  content: string
+}
+
 export const wikiApi = {
-  list: (category) =>
+  list: (category?: string) =>
     travelApi.get("/wiki", { params: category ? { category } : {} }),
-  create: (payload) => travelApi.post("/wiki", payload),
-  bulkCreate: (entries) => travelApi.post("/wiki/bulk", entries),
-  search: (query, category, limit = 8) =>
+  create: (payload: Partial<WikiEntry>) => travelApi.post("/wiki", payload),
+  bulkCreate: (entries: Partial<WikiEntry>[]) => travelApi.post("/wiki/bulk", entries),
+  search: (query: string, category?: string, limit = 8) =>
     travelApi.post("/wiki/search", { query, category, limit }),
-  delete: (id) => travelApi.delete(`/wiki/${id}`),
+  delete: (id: string) => travelApi.delete(`/wiki/${id}`),
 }
 
 export default travelApi
