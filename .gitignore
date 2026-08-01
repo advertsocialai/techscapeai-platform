@@ -28,6 +28,9 @@ backend/venv/
 backend/.venv/
 backend/env/
 backend/.env
+api/venv/
+api/.venv/
+api/env/
 *.egg-info/
 dist/
 build/
