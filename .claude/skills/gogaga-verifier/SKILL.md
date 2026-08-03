@@ -1,0 +1,60 @@
+---
+name: gogaga-verifier
+description: Verification and testing toolkit for the GoGaga/TechScapeAI FastAPI backend. ALWAYS use this skill when verifying any backend task, running acceptance checks, testing endpoints, checking RBAC/permissions, minting test tokens, running the access matrix, doing the regression check, or writing PHASE reports. Trigger on any mention of "verify", "test the endpoint", "acceptance", "access matrix", "regression", "curl the API", or when completing any task in a phase agent loop. A task is NEVER done until this skill's verification patterns pass.
+---
+
+# GoGaga Verifier
+
+Verification toolkit for the GoGaga backend. Core principle: **a task is done when its verification commands pass — including failure paths — not when code compiles.**
+
+## The three verification layers (run in this order)
+
+1. **Regression floor** (after EVERY task): `scripts/regression_check.sh` — login must return 200 + tokens, GET /wiki with that token must return 200. If this fails, fixing it preempts everything else.
+2. **Task verification** (per task): the specific success + failure path checks for what was just built. Templates in `references/curl-cookbook.md`.
+3. **Acceptance sweep** (end of phase): `scripts/access_matrix.py` — every endpoint × every role, expected vs actual status codes, printed as a table for the phase report.
+
+## Setup (once per session)
+
+Set environment for the scripts:
+```bash
+export GOGAGA_API=http://localhost:8000        # FastAPI base URL
+export GOGAGA_TEST_EMAIL=<working login email>
+export GOGAGA_TEST_PASSWORD=<working password>
+# Only needed for token minting (read from api's own config if possible):
+export GOGAGA_JWT_SECRET=<settings.JWT_SECRET value>   # access tokens; refresh uses JWT_REFRESH_SECRET
+export GOGAGA_JWT_ALG=HS256
+export GOGAGA_TEST_BIZ=<an ACTIVE ts_businesses.id>      # required: tokens carry a biz claim
+export GOGAGA_TEST_SUB=<a real ts_users.id>              # recommended: require_business fetches the user row
+```
+IMPORTANT: read the JWT secret/alg/claim-shape from `api/app/core/security.py` first — the minting script now matches the real shape (sub/biz/role/type/jti, HS256, JWT_SECRET). require_business also validates the biz row is ACTIVE and fetches the user — use real ids.
+
+## Scripts (run, don't rewrite)
+
+- `scripts/regression_check.sh` — the floor check. Exit 0 = green.
+- `scripts/make_test_token.py --role viewer --biz $GOGAGA_TEST_BIZ [--sub $GOGAGA_TEST_SUB] [--ttl 300]` — mint a short-lived token for any role. Used for RBAC testing without creating real users.
+- `scripts/access_matrix.py --spec references/matrix-spec.json` — runs every endpoint × role combo, prints PASS/FAIL table, exits non-zero if any mismatch. Update matrix-spec.json as endpoints are added each phase.
+- `scripts/ws_probe.py --call-id <id>` — connects to /ws/calls/{id}, prints messages for 30s. Phase 2+ WebSocket verification.
+- `scripts/cleanup_test_artifacts.py [--yes]` — after acceptance sweeps: removes rows the matrix created (wiki 'matrix-test', users *@test.local, 'Matrix Test%' branches). Dry-run by default; only touches the hardcoded test markers.
+
+## Verification rules
+
+- **Failure paths are mandatory**: bad token → 401 clean JSON (never a stack trace); insufficient role → 403; out-of-branch → 404. A task claiming success without failure-path evidence is incomplete.
+- **Evidence = real output**: paste actual curl/script output in reports, trimmed. Never "it should work."
+- **DB state checks**: after writes, confirm in Supabase (e.g., soft-delete → status='inactive' in the users table, not just a 200 response).
+- **Token invalidation chains**: after logout or user deactivation, prove the OLD token now fails (401/403) — this is the most commonly skipped check.
+- **Secrets discipline**: mask all tokens/keys in output to last 4 chars.
+- **3-attempt rule**: verification failing 3 times → STOP, report blocker, don't improvise.
+
+## Per-phase verification focus
+
+- **P1**: access matrix across 4 roles; refresh/logout token lifecycle; branch scoping (admin 404s on out-of-branch); soft-delete + token invalidation chain.
+- **P2**: real-call checks (transcript rows match what was said; calls row lifecycle); `ws_probe.py` shows live feed; per-hop latency logged every turn (stt_ms, llm_ttft_ms, tts_ttfb_ms); Plivo signature rejection test (unsigned request → 403).
+- **P2.5**: one flow touches all 4 new tables (lead → reassign → payment link → auto-seeded follow_ups); RLS verified per table.
+- **P3**: sentiment jsonb populated per chunk; score recompute on call end; takeover keeps transcript flowing (ws_probe during a two-phone test); whisper messages appear on the same WS.
+- **P4**: Razorpay webhook signature verify + lookup-confirm before status=paid; scheduler fires on backdated scheduled_at; 09:00–21:00 IST guard blocks out-of-window sends; dashboard/summary numbers reconcile against raw table counts.
+
+## Phase report template
+
+End every phase with `PHASE<N>_REPORT.md`: endpoints added · files touched · access matrix table (from access_matrix.py output) · failure-path evidence · TODOs left · deviations from plan discovered during recon.
+
+For the full curl command cookbook per endpoint, read `references/curl-cookbook.md`.

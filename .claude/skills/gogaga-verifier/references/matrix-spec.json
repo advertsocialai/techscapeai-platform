@@ -1,0 +1,17 @@
+{
+  "_comment": "Phase 1 matrix vs REAL repo. CONFIRM route prefixes in routers/__init__.py at recon (assumed /api/techscape/* and /api/travel/*) and update paths+codes here BEFORE running. Token minting REQUIRES --biz <active business id> and ideally --sub <real ts_users id>. Wiki uses 201/204 on create/delete.",
+  "endpoints": [
+    {"method":"GET","path":"/api/travel/wiki","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/travel/wiki","body":{"title":"matrix-test","content":"probe"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/techscape/users","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"POST","path":"/api/techscape/users","body":{"email":"matrix-probe@test.local","full_name":"Matrix Probe","role":"agent"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/leads","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"GET","path":"/api/techscape/branches","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/techscape/branches","body":{"name":"Matrix Test Branch","city":"Hyderabad"},"expect":{"super_admin":201,"admin":403,"agent":403,"viewer":403}},
+    {"method":"POST","path":"/api/techscape/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
+  ],
+  "_notes": [
+    "agent GET /leads expects 200 but ASSIGNED-ONLY rows — matrix checks status only; row-scope verified in task chains.",
+    "Update every path/code from T0 recon before the T7 sweep. Add PATCH/DELETE target-id tests in chains, not here."
+  ]
+}
