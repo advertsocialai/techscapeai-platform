@@ -51,6 +51,22 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     AI_MODEL: str = "claude-sonnet-4-6"
 
+    # ── GoGaga voice (Phase 2) — Plivo (+91 domestic voice) ──
+    PLIVO_AUTH_ID: str = ""
+    PLIVO_AUTH_TOKEN: str = ""
+    PLIVO_PHONE_NUMBER: str = ""
+    PUBLIC_BASE_URL: str = ""  # ngrok https URL in dev — Plivo needs a public webhook target
+    # Plivo webhooks carry no JWT/business context, and there's no
+    # phone-number-per-business registry yet (Phase 3 TODO). One global
+    # PLIVO_PHONE_NUMBER can only realistically serve one tenant right
+    # now, so that tenant is named explicitly here.
+    PLIVO_BUSINESS_ID: str = ""
+
+    # ── GoGaga voice (Phase 2) — STT/TTS ──
+    SARVAM_API_KEY: str = ""     # Telugu / code-mix STT
+    DEEPGRAM_API_KEY: str = ""   # English/Hindi STT (default engine)
+    ELEVENLABS_API_KEY: str = ""  # TTS
+
     # ── TechScape auth ──
     JWT_SECRET: str = "change-me-in-prod"
     JWT_REFRESH_SECRET: str = "change-me-too-in-prod"

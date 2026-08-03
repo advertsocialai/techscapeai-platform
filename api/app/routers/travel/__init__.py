@@ -18,6 +18,7 @@ from .language    import router as language_router
 from .leads       import router as leads_router
 from .on_ground   import router as on_ground_router
 from .playbooks   import router as playbooks_router
+from .webhooks_voice import router as webhooks_voice_router
 from .wiki        import router as wiki_router
 
 
@@ -36,5 +37,6 @@ travel_router.include_router(inbound_router,    prefix="/inbound",     tags=["Tr
 travel_router.include_router(bookings_router,   prefix="/bookings",    tags=["Travel · Bookings"])
 travel_router.include_router(playbooks_router,  prefix="/playbooks",   tags=["Travel · TravelWorkflow OS (24 UCs)"])
 travel_router.include_router(demo_router,       prefix="/demo",        tags=["Travel · Demo"])
+travel_router.include_router(webhooks_voice_router, prefix="/webhook",  tags=["Travel · Voice Webhooks"])
 
 __all__ = ["travel_router"]
