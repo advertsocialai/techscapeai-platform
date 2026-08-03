@@ -30,31 +30,60 @@ is kept as its own, separate franchise-partner concept (owner_name, onboarding,
 metadata) — do not conflate the two.
 
 ## Existing travel tables (12) — extend these
-- travel_wiki — entries + embedding column (vector) present, EMBEDDINGS NOT POPULATED yet; search=ilike
+- **travel_wiki** — entries + `embedding vector(384)` ✅ (resized from 1536 in migration 0004). **All rows backfilled** with bge-small embeddings. Search: `WikiService.search()` tries cosine similarity via `match_travel_wiki()` RPC first, falls back to keyword ilike. Do NOT assume vector(1536) anywhere.
 - travel_destinations, travel_packages, travel_suppliers — catalog
 - travel_customer_profiles — customer memory
 - travel_itineraries
 - travel_franchisees — a separate franchise-partner concept (owner_name,
   onboarding, metadata). NOT the branch model — P1 built a dedicated
   `branches` table instead (see above). Do not link branch_id here.
-- travel_leads — business_id FK CASCADE · customer_id · source(whatsapp/website/phone/franchisee/referral/sms/email/other) · raw_message · intent · destination_hint · pax_count · budget_inr · duration_days · score int · qualification(cold/warm/hot/converted/lost) · status(new/qualified/itinerary_sent/negotiating/booked/lost) · itinerary_id · franchisee_id · metadata jsonb · timestamps + updated_at trigger
-  → P2 extends: phone (unique caller lookup), assigned_agent FK ts_users, embedding vector(1536), language
+- **travel_leads** — business_id FK CASCADE · customer_id · source(whatsapp/website/phone/franchisee/referral/sms/email/other) · raw_message · intent · destination_hint · pax_count · budget_inr · duration_days · score int · qualification(cold/warm/hot/converted/lost) · status(new/qualified/itinerary_sent/negotiating/booked/lost) · itinerary_id · franchisee_id · metadata jsonb · timestamps + updated_at trigger
+  **P2 additions (migration 0003, DONE)**: `phone VARCHAR(20)` (idx), `assigned_agent UUID FK ts_users ON DELETE SET NULL` (idx), `language VARCHAR(10) DEFAULT 'en'`, `embedding vector(384)` (resized from 1536 in migration 0004). Agent-tier sees only rows where assigned_agent = self.
 - travel_bookings, travel_booking_guarantees, travel_in_trip_incidents
 - travel_playbook_runs — use_case_id, trigger_kind(manual/schedule/event/webhook), channels[], status, rendered/delivery jsonb + unique once-per-booking schedule index → FOLLOW-UP LADDER BUILDS ON THIS
 
-## GoGaga additions by phase (create with gogaga-migrations discipline)
-P1 (DONE): role CHECK widened on ts_users (+super_admin,+agent, additive) +
-  branch linkage — branch_id → new dedicated `branches` table (see above).
-P2: travel_leads gains `assigned_agent` FK ts_users — required before leads
-  RBAC can move from role-only gating (P1, `api/app/routers/travel/leads.py`)
-  to real assigned-only row scoping for agents.
-P2: travel_calls (id, lead_id FK, provider_sid, status active/completed/failed, mode ai/agent/conference, duration_sec, recording_url, sentiment_score, stt_engine, language, started_at/ended_at)
-    travel_transcripts (id, call_id FK CASCADE, speaker ai/customer/agent, text_original, text_translated, timestamp_ms, sentiment jsonb{excitement,intent,price_sensitivity,urgency}, embedding vector(1536))
-P2.5/P4: travel_payment_links (lead_id, package, amounts base/transfers/gst/total, gateway, expiry, send_via, status, gateway_link_id)
-    travel_ai_config (business_id/branch scope, question_flow/language_settings/escalation_rules/working_hours/follow_up_ladder jsonb)
-    report scheduling — check if playbooks cover before adding a table
+## GoGaga additions — DONE (migrations applied)
+
+### migration 0002 — branches + user branch scoping (P1 DONE)
+role CHECK widened on ts_users (+super_admin,+agent, additive); `branches` table created; `ts_users.branch_id` FK added.
+
+### migration 0003 — travel_calls + travel_transcripts + leads assignment (P2 DONE)
+```
+travel_calls (
+  id UUID PK, business_id FK ts_businesses CASCADE,
+  lead_id FK travel_leads SET NULL, provider_sid VARCHAR(255),
+  status VARCHAR(20) CHECK('active','completed','failed') DEFAULT 'active',
+  mode VARCHAR(20) CHECK('ai','agent','conference') DEFAULT 'ai',
+  duration_sec INTEGER, recording_url TEXT, sentiment_score NUMERIC(4,3),
+  stt_engine VARCHAR(20), language VARCHAR(10) DEFAULT 'en',
+  started_at TIMESTAMPTZ, ended_at TIMESTAMPTZ,
+  created_at/updated_at TIMESTAMPTZ, updated_at trigger
+)
+RLS ENABLED + REVOKE ALL FROM anon, authenticated
+
+travel_transcripts (
+  id UUID PK, call_id FK travel_calls CASCADE NOT NULL,
+  speaker VARCHAR(20) CHECK('ai','customer','agent') NOT NULL,
+  text_original TEXT NOT NULL, text_translated TEXT,
+  timestamp_ms BIGINT NOT NULL, sentiment JSONB DEFAULT '{}',
+  embedding vector(384),  ← resized to 384 in migration 0004
+  created_at TIMESTAMPTZ  ← append-only, no updated_at trigger
+)
+RLS ENABLED + REVOKE ALL FROM anon, authenticated
+```
+
+### migration 0004 — wiki embeddings + vector resize to 384-dim (P2 DONE)
+- `travel_wiki.embedding`, `travel_leads.embedding`, `travel_transcripts.embedding` all resized from vector(1536) → **vector(384)**
+- Lossless: zero rows had populated embeddings before this migration
+- `match_travel_wiki(p_business_id, p_query_embedding vector(384), p_match_count, p_category)` RPC created (cosine, business-scoped)
+- Embedder: BAAI/bge-small-en-v1.5 via fastembed (ONNX, no API key, ~67MB, 384-dim). Lives in `services/travel/embeddings.py`.
+
+## GoGaga additions — PLANNED (not yet migrated)
+P2B: `travel_calls.mpc_uuid VARCHAR(255)` — needed when MPC migration (B2) lands; migration 0005
+P2.5/P4: travel_payment_links · travel_ai_config · report scheduling (check if playbooks cover before adding a table)
 
 ## Migration rules (see gogaga-migrations skill)
 - Follow existing file style: IF NOT EXISTS, CHECK constraints for enums (this repo uses VARCHAR+CHECK, not Postgres enums), idx_ naming, trg_ triggers with set_updated_at()
 - Same-file RLS: ENABLE + REVOKE block appended (copy the DO $$ FOREACH pattern at travel_schema.sql end)
-- pgvector: extension available; embedding vector(1536); index only >10k rows
+- pgvector: extension available; **embedding vector(384)** (NOT 1536 — resized in migration 0004); index only >10k rows
+- Next migration number: **0005**
