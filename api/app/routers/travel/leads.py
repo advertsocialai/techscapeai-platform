@@ -1,19 +1,20 @@
 """Lead Qualification endpoints — pre-booking funnel.
 
-T6 (partial, Phase 1): role-gated per core/deps.py's hierarchy, business-
-scoped via the user's own business_id (same pattern as wiki.py/users.py/
-branches.py — JWT-only, no API-key fallback, which is why this switched
-from require_business to get_current_user/require_role).
+T6 (Phase 1, partial) + T1 (Phase 2): role-gated per core/deps.py's
+hierarchy, business-scoped via the user's own business_id (same pattern
+as wiki.py/users.py/branches.py — JWT-only, no API-key fallback).
 
 Read = agent+ (rank>=2). Write = manager+ (rank>=3, == product spec's
 "admin+" — see core/deps.py's role-mapping note, same convention wiki.py
-uses). NOT built here: assigned-only row scoping for agents (an agent
-should eventually only see/act on their OWN assigned leads) — that needs
-travel_leads.assigned_agent, which doesn't exist until the Phase 2
-travel_leads extension. Building row-level scoping against a column that
-doesn't exist yet would mean redoing it once P2 lands it, so this phase
-only adds the coarse role gate (business-wide read for any agent+,
-business-wide write for any manager+). Formally deferred to Phase 2.
+uses).
+
+Assigned-only scoping (Phase 2 T1, was deferred in Phase 1 pending
+travel_leads.assigned_agent — now built by migration 0003): an agent-tier
+caller (rank 2 — role in agent/user) only sees/reads leads where
+assigned_agent == themself on GET (list) and GET /{id}; manager+ keeps
+the existing business-wide scope, unchanged. Assignment itself
+(PUT /{id}/assign) is a manager+ action, same write tier as everything
+else that mutates a lead — agents cannot self-assign.
 """
 from typing import Optional
 from uuid import UUID
@@ -21,7 +22,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.schemas.travel import (
-    LeadIn, LeadOut, LeadQualification, LeadStatus, LeadStatusUpdate,
+    LeadAssignIn, LeadIn, LeadOut, LeadQualification, LeadStatus, LeadStatusUpdate,
 )
 from app.services.travel import LeadService
 from app.core.deps import require_role
@@ -30,6 +31,15 @@ router = APIRouter()
 
 _read  = require_role("agent")
 _write = require_role("manager")
+
+# Roles that rank >= manager (3) — same literal set as users.py's
+# `_is_super` convention, one tier down. Anyone NOT in this set who still
+# passed `_read` (rank>=2) is agent-tier and gets assigned-only scoping.
+_MANAGER_PLUS_ROLES = {"manager", "admin", "super_admin"}
+
+
+def _is_manager_plus(user: dict) -> bool:
+    return user.get("role") in _MANAGER_PLUS_ROLES
 
 
 @router.post("", response_model=LeadOut, status_code=status.HTTP_201_CREATED)
@@ -53,15 +63,18 @@ def list_leads(
     limit:                int                         = Query(default=100, ge=1, le=500),
     user: dict = Depends(_read),
 ):
+    scope = None if _is_manager_plus(user) else UUID(user["id"])
     return LeadService().list(
         UUID(user["business_id"]),
-        status=status_filter, qualification=qualification_filter, limit=limit,
+        status=status_filter, qualification=qualification_filter,
+        assigned_agent=scope, limit=limit,
     )
 
 
 @router.get("/{lead_id}", response_model=LeadOut)
 def get_lead(lead_id: UUID, user: dict = Depends(_read)):
-    row = LeadService().get(lead_id, UUID(user["business_id"]))
+    scope = None if _is_manager_plus(user) else UUID(user["id"])
+    row = LeadService().get(lead_id, UUID(user["business_id"]), assigned_agent=scope)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
     return row
@@ -73,6 +86,14 @@ def update_status(
     user: dict = Depends(_write),
 ):
     row = LeadService().update_status(lead_id, UUID(user["business_id"]), body.status)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
+    return row
+
+
+@router.put("/{lead_id}/assign", response_model=LeadOut)
+def assign_lead(lead_id: UUID, body: LeadAssignIn, user: dict = Depends(_write)):
+    row = LeadService().assign(lead_id, UUID(user["business_id"]), body.assigned_agent)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Lead not found")
     return row

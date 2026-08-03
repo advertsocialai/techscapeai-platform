@@ -117,26 +117,51 @@ class LeadService:
             "qualification":   qual,
             "status":          "new",
             "franchisee_id":   str(franchisee_id) if franchisee_id else None,
+            "phone":           customer_phone,
+            "language":        language,
         }).execute().data[0]
         return row
 
     def list(self, business_id: UUID, *,
              status: Optional[str] = None,
              qualification: Optional[str] = None,
+             assigned_agent: Optional[UUID] = None,
              limit: int = 100) -> list[dict]:
+        """assigned_agent=None means unscoped (manager+ sees the whole
+        business); pass a real agent id to restrict to their own rows."""
         q = (
             self.db.table("travel_leads").select("*")
             .eq("business_id", str(business_id))
         )
-        if status:        q = q.eq("status", status)
-        if qualification: q = q.eq("qualification", qualification)
+        if status:         q = q.eq("status", status)
+        if qualification:  q = q.eq("qualification", qualification)
+        if assigned_agent: q = q.eq("assigned_agent", str(assigned_agent))
         return q.order("created_at", desc=True).limit(limit).execute().data or []
 
-    def get(self, lead_id: UUID, business_id: UUID) -> dict | None:
+    def get(self, lead_id: UUID, business_id: UUID,
+            *, assigned_agent: Optional[UUID] = None) -> dict | None:
+        """assigned_agent=None means unscoped. Returns None if the lead
+        doesn't exist OR is outside the caller's assignment scope —
+        callers must turn None into 404 (never leak existence)."""
         r = (
             self.db.table("travel_leads").select("*")
             .eq("id", str(lead_id)).eq("business_id", str(business_id))
             .limit(1).execute()
+        )
+        if not r.data:
+            return None
+        row = r.data[0]
+        if assigned_agent is not None and row.get("assigned_agent") != str(assigned_agent):
+            return None
+        return row
+
+    def assign(self, lead_id: UUID, business_id: UUID,
+               assigned_agent: Optional[UUID]) -> dict | None:
+        r = (
+            self.db.table("travel_leads")
+            .update({"assigned_agent": str(assigned_agent) if assigned_agent else None})
+            .eq("id", str(lead_id)).eq("business_id", str(business_id))
+            .execute()
         )
         return r.data[0] if r.data else None
 

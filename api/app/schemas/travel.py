@@ -323,12 +323,19 @@ class LeadOut(_Base):
     status:      LeadStatus
     itinerary_id: Optional[UUID] = None
     franchisee_id: Optional[UUID] = None
+    phone:       Optional[str] = None
+    assigned_agent: Optional[UUID] = None
+    language:    str = "en"
     metadata:    dict[str, Any] = {}
     created_at:  datetime
 
 
 class LeadStatusUpdate(_Base):
     status: LeadStatus
+
+
+class LeadAssignIn(_Base):
+    assigned_agent: Optional[UUID] = None  # null = unassign
 
 
 # ── Inbound WhatsApp dispatcher ──────────────────────────────────
