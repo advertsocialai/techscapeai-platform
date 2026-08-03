@@ -12,6 +12,7 @@ Auth router for TechScape:
   • GET  /auth/oauth/google/callback → exchange code → JWT pair
 """
 from __future__ import annotations
+import re
 import secrets
 import time
 import traceback
@@ -22,12 +23,13 @@ from uuid import UUID
 
 import httpx
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.config import settings
 from app.core.security import (
-    decode_refresh_token, hash_password, issue_access_token, issue_refresh_token,
+    blacklist_jti, decode_access_token, decode_refresh_token,
+    hash_password, issue_access_token, issue_refresh_token,
 )
 from app.services.techscape import BusinessService
 from app.services.techscape.audit import write_audit
@@ -36,6 +38,22 @@ from ._deps import require_business
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+# ── Password strength ───────────────────────────────────────────────
+_PASSWORD_RULES: tuple[tuple[str, str], ...] = (
+    (r"[A-Z]", "one uppercase letter"),
+    (r"[a-z]", "one lowercase letter"),
+    (r"\d", "one number"),
+    (r"[^A-Za-z0-9]", "one special character"),
+)
+
+
+def _validate_password_strength(v: str) -> str:
+    missing = [msg for pattern, msg in _PASSWORD_RULES if not re.search(pattern, v)]
+    if missing:
+        raise ValueError(f"Password must contain at least {', '.join(missing)}")
+    return v
 
 
 # ── DTOs ──────────────────────────────────────────────────────────
@@ -54,6 +72,8 @@ class RegisterBusinessIn(BaseModel):
     terms_accepted_at: Optional[str] = None
     terms_version: Optional[str] = None
     marketing_opt_in: Optional[bool] = False
+
+    _validate_user_password = field_validator("user_password")(_validate_password_strength)
 
 
 class LoginIn(BaseModel):
@@ -79,6 +99,8 @@ class PasswordForgotIn(BaseModel):
 class PasswordResetIn(BaseModel):
     token: str
     new_password: str = Field(min_length=8, max_length=200)
+
+    _validate_new_password = field_validator("new_password")(_validate_password_strength)
 
 
 # ── Tiny in-memory password-reset store (dev). Production should email + DB. ──
@@ -192,6 +214,27 @@ def refresh(payload: RefreshIn):
     )
 
 
+@router.post("/logout")
+def logout(authorization: Optional[str] = Header(default=None)):
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing bearer token")
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        claims = decode_access_token(token)
+    except jwt.ExpiredSignatureError:
+        return {"ok": True}  # already unusable — nothing to revoke
+    except jwt.InvalidTokenError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    if claims.get("type") != "access":
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong token type")
+    remaining = claims["exp"] - time.time()
+    blacklist_jti(claims.get("jti"), remaining)
+    write_audit(
+        business_id=claims.get("biz"), user_id=claims.get("sub"), action="auth.logout",
+    )
+    return {"ok": True}
+
+
 @router.get("/me")
 def me(principal: dict = Depends(require_business)):
     safe = {k: v for k, v in principal.items() if k not in ("api_key_hash", "_user")}
@@ -218,6 +261,31 @@ def password_forgot(payload: PasswordForgotIn):
     svc = BusinessService()
     user = svc.find_user_by_email(str(payload.email))
     token = _issue_reset_token(user["id"]) if user else None
+
+    if token and settings.RESEND_API_KEY:
+        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password?token={token}"
+        try:
+            resp = httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                json={
+                    "from": f"Klara <{settings.FROM_EMAIL}>",
+                    "to": [str(payload.email)],
+                    "subject": "Reset your Klara password",
+                    "html": (
+                        "<p>We received a request to reset your password.</p>"
+                        f'<p><a href="{reset_link}">Click here to reset your password</a></p>'
+                        "<p>This link expires in 30 minutes. If you didn't request this, "
+                        "you can safely ignore this email.</p>"
+                    ),
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+        except Exception:
+            traceback.print_exc()
+
+    # Never reveal whether the email exists — same response either way.
     if settings.DEBUG and token:
         return {"ok": True, "reset_token": token}
     return {"ok": True}

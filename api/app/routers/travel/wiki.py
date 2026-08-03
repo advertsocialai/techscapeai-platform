@@ -5,42 +5,47 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.schemas.travel import WikiEntryIn, WikiEntryOut, WikiSearchIn
 from app.services.travel import WikiService
-from app.routers.techscape._deps import require_business
+from app.core.deps import require_role
 
 router = APIRouter()
+
+# Read = any authenticated user (viewer+). Write = manager+ (== product
+# spec's "admin+" — see app/core/deps.py role-mapping note).
+_read  = require_role("viewer")
+_write = require_role("manager")
 
 
 @router.get("", response_model=list[WikiEntryOut])
 def list_wiki(
     category: str | None = Query(default=None),
     limit:    int        = Query(default=100, ge=1, le=500),
-    biz: dict = Depends(require_business),
+    user: dict = Depends(_read),
 ):
-    return WikiService().list(UUID(biz["id"]), category=category, limit=limit)
+    return WikiService().list(UUID(user["business_id"]), category=category, limit=limit)
 
 
 @router.post("", response_model=WikiEntryOut, status_code=status.HTTP_201_CREATED)
-def create_wiki(payload: WikiEntryIn, biz: dict = Depends(require_business)):
-    return WikiService().create(UUID(biz["id"]), payload.model_dump())
+def create_wiki(payload: WikiEntryIn, user: dict = Depends(_write)):
+    return WikiService().create(UUID(user["business_id"]), payload.model_dump())
 
 
 @router.post("/bulk", status_code=status.HTTP_201_CREATED)
-def bulk_create_wiki(entries: list[WikiEntryIn], biz: dict = Depends(require_business)):
-    n = WikiService().bulk_create(UUID(biz["id"]), [e.model_dump() for e in entries])
+def bulk_create_wiki(entries: list[WikiEntryIn], user: dict = Depends(_write)):
+    n = WikiService().bulk_create(UUID(user["business_id"]), [e.model_dump() for e in entries])
     return {"created": n}
 
 
 @router.post("/search", response_model=list[WikiEntryOut])
-def search_wiki(payload: WikiSearchIn, biz: dict = Depends(require_business)):
+def search_wiki(payload: WikiSearchIn, user: dict = Depends(_read)):
     return WikiService().search(
-        UUID(biz["id"]),
+        UUID(user["business_id"]),
         query=payload.query, category=payload.category, limit=payload.limit,
     )
 
 
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_wiki(entry_id: UUID, biz: dict = Depends(require_business)):
-    ok = WikiService().delete(entry_id, UUID(biz["id"]))
+def delete_wiki(entry_id: UUID, user: dict = Depends(_write)):
+    ok = WikiService().delete(entry_id, UUID(user["business_id"]))
     if not ok:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Wiki entry not found")
     return None

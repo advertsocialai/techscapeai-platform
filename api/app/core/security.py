@@ -11,6 +11,7 @@ import base64
 import hashlib
 import hmac
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -89,6 +90,31 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
 def decode_refresh_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.JWT_REFRESH_SECRET, algorithms=[JWT_ALG])
+
+
+# ── Token blacklist (logout) ───────────────────────────────────────
+# TODO: swap for Redis (SETEX <jti> <ttl> 1) once Redis is provisioned.
+# In-memory dict is per-process and does not survive restarts/multiple
+# workers — acceptable for dev, not for a multi-instance prod deploy.
+_blacklisted_jti: dict[str, float] = {}
+
+
+def blacklist_jti(jti: str, ttl_seconds: float) -> None:
+    if not jti or ttl_seconds <= 0:
+        return
+    _blacklisted_jti[jti] = time.monotonic() + ttl_seconds
+
+
+def is_jti_blacklisted(jti: Optional[str]) -> bool:
+    if not jti:
+        return False
+    expires_at = _blacklisted_jti.get(jti)
+    if expires_at is None:
+        return False
+    if time.monotonic() > expires_at:
+        _blacklisted_jti.pop(jti, None)
+        return False
+    return True
 
 
 # ── Fernet symmetric encryption ────────────────────────────────────
