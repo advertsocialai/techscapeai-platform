@@ -1,17 +1,16 @@
 {
-  "_comment": "Phase 1 matrix vs REAL repo. CONFIRM route prefixes in routers/__init__.py at recon (assumed /api/techscape/* and /api/travel/*) and update paths+codes here BEFORE running. Token minting REQUIRES --biz <active business id> and ideally --sub <real ts_users id>. Wiki uses 201/204 on create/delete.",
+  "_comment": "Phase 1 matrix vs REAL repo. Recon (T0/T2) confirmed real prefixes are /api/techscape/v1/* and /api/travel/v1/* (NOT /api/techscape/* — the router mount adds /v1). 'admin' column below is the spec's branch-admin tier, which core/deps.py stores as role='manager' (bare 'admin' is reserved for the legacy top rank == super_admin — see core/deps.py docstring). Token minting REQUIRES --biz <active business id> AND --sub <real ts_users id whose actual DB role matches the column> — core/deps.get_current_user re-reads the DB row and ignores the token's role claim, so access_matrix.py's mint() must be given real per-role user ids (it currently mints with no --sub/--biz at all and will fail against this repo's RBAC model). Wiki uses 201/204 on create/delete; users/branches use 201 on create.",
   "endpoints": [
-    {"method":"GET","path":"/api/travel/wiki","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
-    {"method":"POST","path":"/api/travel/wiki","body":{"title":"matrix-test","content":"probe"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
-    {"method":"GET","path":"/api/techscape/users","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
-    {"method":"POST","path":"/api/techscape/users","body":{"email":"matrix-probe@test.local","full_name":"Matrix Probe","role":"agent"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
-    {"method":"GET","path":"/api/travel/leads","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
-    {"method":"GET","path":"/api/techscape/branches","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
-    {"method":"POST","path":"/api/techscape/branches","body":{"name":"Matrix Test Branch","city":"Hyderabad"},"expect":{"super_admin":201,"admin":403,"agent":403,"viewer":403}},
-    {"method":"POST","path":"/api/techscape/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
+    {"method":"GET","path":"/api/travel/v1/wiki","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/travel/v1/wiki","body":{"category":"general","title":"matrix-test","content":"probe"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/techscape/v1/users","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"POST","path":"/api/techscape/v1/users","body":{"email":"matrix-probe@techscapeai.com","password":"TestPass123!","role":"agent"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/techscape/v1/branches","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/techscape/v1/branches","body":{"name":"Matrix Test Branch","city":"Hyderabad"},"expect":{"super_admin":201,"admin":403,"agent":403,"viewer":403}},
+    {"method":"POST","path":"/api/techscape/v1/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
   ],
   "_notes": [
-    "agent GET /leads expects 200 but ASSIGNED-ONLY rows — matrix checks status only; row-scope verified in task chains.",
-    "Update every path/code from T0 recon before the T7 sweep. Add PATCH/DELETE target-id tests in chains, not here."
+    "travel_leads endpoint removed from this P1 matrix — leads/assigned-only scoping is P2 scope per gogaga-backend Phase gates, not built in this phase.",
+    "PATCH/DELETE target-id tests, out-of-branch 404s, role-elevation 403s, and the token-invalidation chain were verified in T3-T5 task chains with real per-role DB fixtures (not this static spec) — see PHASE1_REPORT.md."
   ]
 }
