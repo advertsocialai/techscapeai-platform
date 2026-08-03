@@ -9,11 +9,14 @@
     {"method":"POST","path":"/api/techscape/v1/branches","body":{"name":"Matrix Test Branch","city":"Hyderabad"},"expect":{"super_admin":201,"admin":403,"agent":403,"viewer":403}},
     {"method":"GET","path":"/api/travel/v1/leads","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
     {"method":"POST","path":"/api/travel/v1/leads","body":{"raw_message":"matrix-probe lead","source":"website"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/calls/live","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
     {"method":"POST","path":"/api/techscape/v1/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
   ],
   "_notes": [
-    "leads.py is T6-PARTIAL: role-gated only (read=agent+, write=manager+ — hence viewer:403 on GET, agent:403 on POST). Assigned-only row scoping (an agent should eventually see only THEIR leads) is deferred to P2, pending travel_leads.assigned_agent, which doesn't exist yet. This matrix only proves the role gate, not row-level scoping.",
-    "PATCH/DELETE target-id tests, out-of-branch 404s, role-elevation 403s, and the token-invalidation chain were verified in T3-T5 task chains with real per-role DB fixtures (not this static spec) — see PHASE1_REPORT.md.",
-    "logout is tested separately from the table above in practice (each call invalidates that role's own token) — run it last per role, not interleaved with the other rows."
+    "leads.py's assigned-only scoping (Phase 2 T1) is DONE — agent-tier GET/list is restricted to assigned_agent=self, manager+ stays business-wide. Status-code matrix above still shows 200/200/200/403 for GET (all non-viewer roles get 200; the ROW-LEVEL filtering isn't a status-code difference) — row-level proof needs real per-agent fixtures with different assignments, done in PHASE2_REPORT.md T1/T7 evidence, not this static spec.",
+    "calls.py (Phase 2 T7) mirrors the same pattern via lead_id join: agent-tier GET /calls/live returns only calls whose lead is assigned to them (still 200, filtered result). GET /calls/{id}/transcript and the WS /ws/calls/{call_id} live feed depend on a specific call's scope (in/out of the caller's assignment) — not expressible as a static per-role code here, verified via real fixtures in PHASE2_REPORT.md instead.",
+    "PATCH/DELETE target-id tests, out-of-branch 404s, role-elevation 403s, and the token-invalidation chain were verified in T3-T5 (Phase 1) and T1/T7 (Phase 2) task chains with real per-role DB fixtures (not this static spec) — see PHASE1_REPORT.md / PHASE2_REPORT.md.",
+    "logout is tested separately from the table above in practice (each call invalidates that role's own token) — run it last per role, not interleaved with the other rows.",
+    "webhooks_voice.py's POST /webhook/{provider}/voice and WS /webhook/{provider}/stream are NOT in this matrix — they use Plivo-signature auth, not JWT/roles, so a per-role expectation table doesn't apply. See PHASE2_REPORT.md for their verification (HMAC signature logic + simulated frame sequences)."
   ]
 }
