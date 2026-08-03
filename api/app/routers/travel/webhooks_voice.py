@@ -15,6 +15,7 @@ path is BLOCKED pending real PLIVO_AUTH_ID/TOKEN/PHONE_NUMBER and a
 reachable PUBLIC_BASE_URL (ngrok) — see PHASE2_REPORT.md Blocked Items.
 """
 from __future__ import annotations
+import base64
 import logging
 from datetime import datetime, timezone
 
@@ -25,7 +26,9 @@ from fastapi import (
 
 from app.core.config import settings
 from app.database import get_supabase_admin
-from app.services.travel.voice import stream_xml, verify_plivo_signature
+from app.services.travel.voice import (
+    select_stt_engine, stream_xml, transcribe_utterance, verify_plivo_signature,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -128,6 +131,8 @@ async def media_stream(websocket: WebSocket, provider: str):
     db = get_supabase_admin()
     call_row: dict | None = None
     media_frame_count = 0
+    audio_chunks: list[bytes] = []
+    call_start_ms: int | None = None
 
     try:
         while True:
@@ -146,7 +151,19 @@ async def media_stream(websocket: WebSocket, provider: str):
 
             elif event == "media":
                 media_frame_count += 1
-                # T4 wires msg["media"]["payload"] (base64 audio) into STT here.
+                payload = (msg.get("media") or {}).get("payload")
+                if payload:
+                    try:
+                        audio_chunks.append(base64.b64decode(payload))
+                    except Exception:
+                        logger.warning("undecodable media payload, skipping frame")
+                    ts = (msg.get("media") or {}).get("timestamp")
+                    if ts is not None and call_start_ms is None:
+                        call_start_ms = int(ts)
+                # T4 note: this batches the whole utterance and transcribes
+                # once on "stop" (see below) — real per-utterance VAD-based
+                # segmentation is a live-audio-dependent refinement, not
+                # verifiable without a real call. See PHASE2_REPORT.md.
 
             elif event == "stop":
                 if call_row:
@@ -160,6 +177,25 @@ async def media_stream(websocket: WebSocket, provider: str):
                     }).eq("id", call_row["id"]).execute()
                     logger.info("stream stop: call=%s frames=%d duration_sec=%s",
                                 call_row.get("provider_sid"), media_frame_count, duration)
+
+                    if audio_chunks:
+                        engine = select_stt_engine(call_row.get("language"))
+                        result = await transcribe_utterance(
+                            engine=engine, audio_bytes=b"".join(audio_chunks),
+                            language=call_row.get("language"),
+                        )
+                        db.table("travel_calls").update({"stt_engine": engine}).eq(
+                            "id", call_row["id"]
+                        ).execute()
+                        db.table("travel_transcripts").insert({
+                            "call_id":       call_row["id"],
+                            "speaker":       "customer",
+                            "text_original": result["text"],
+                            "timestamp_ms":  call_start_ms or 0,
+                        }).execute()
+                        logger.info("transcript written: call=%s engine=%s stub=%s len=%d",
+                                    call_row.get("provider_sid"), engine,
+                                    result.get("stub"), len(result["text"]))
                 break
 
     except WebSocketDisconnect:

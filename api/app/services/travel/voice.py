@@ -13,10 +13,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
-from typing import Optional
+import logging
+from typing import Any, Optional
 from xml.sax.saxutils import escape
 
+import httpx
+
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ── Plivo signature (V2) ────────────────────────────────────────────
@@ -79,3 +84,60 @@ def stt_configured(engine: str) -> bool:
 
 def tts_configured() -> bool:
     return bool(settings.ELEVENLABS_API_KEY)
+
+
+# ── STT transcription (T4) ───────────────────────────────────────────
+# NOTE: uses each provider's prerecorded/batch REST endpoint against the
+# whole-utterance audio buffer, not a persistent streaming WS connection.
+# Real low-latency production STT (the ≤1.1s mouth-to-ear target) needs
+# streaming — that's flagged as a TODO in PHASE2_REPORT.md, since without
+# live audio there's no way to verify streaming behavior is correct
+# anyway. This batch path is what's actually testable right now: real
+# HTTP call shape is implemented, but genuinely UNVERIFIED — no
+# DEEPGRAM_API_KEY/SARVAM_API_KEY exists to call it with. Stub mode
+# (below) is the only path that's actually been exercised.
+DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
+SARVAM_URL = "https://api.sarvam.ai/speech-to-text"
+
+
+async def transcribe_utterance(
+    *, engine: str, audio_bytes: bytes, language: Optional[str] = None,
+) -> dict[str, Any]:
+    """Returns {"text": str, "confidence": float|None, "engine": str, "stub": bool}."""
+    if not stt_configured(engine):
+        logger.warning("STT engine=%s not configured; returning stub transcript", engine)
+        return {
+            "text": f"[stub transcript — no {'SARVAM' if engine == 'sarvam' else 'DEEPGRAM'}_API_KEY configured]",
+            "confidence": None, "engine": engine, "stub": True,
+        }
+
+    try:
+        if engine == "sarvam":
+            async with httpx.AsyncClient(timeout=20) as client:
+                r = await client.post(
+                    SARVAM_URL,
+                    headers={"api-subscription-key": settings.SARVAM_API_KEY},
+                    files={"file": ("audio.wav", audio_bytes, "audio/wav")},
+                    data={"language_code": language or "te-IN", "model": "saarika:v2"},
+                )
+                r.raise_for_status()
+                data = r.json()
+                return {"text": data.get("transcript", ""), "confidence": None,
+                        "engine": "sarvam", "stub": False}
+        else:
+            async with httpx.AsyncClient(timeout=20) as client:
+                r = await client.post(
+                    f"{DEEPGRAM_URL}?language={language or 'en'}&model=nova-2",
+                    headers={"Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
+                             "Content-Type": "audio/wav"},
+                    content=audio_bytes,
+                )
+                r.raise_for_status()
+                data = r.json()
+                alt = (data.get("results", {}).get("channels", [{}])[0]
+                       .get("alternatives", [{}])[0])
+                return {"text": alt.get("transcript", ""), "confidence": alt.get("confidence"),
+                        "engine": "deepgram", "stub": False}
+    except Exception as e:
+        logger.exception("STT call failed (engine=%s)", engine)
+        return {"text": "", "confidence": None, "engine": engine, "stub": False, "error": str(e)[:240]}
