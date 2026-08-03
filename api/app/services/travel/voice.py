@@ -10,11 +10,12 @@ credentials. Once PLIVO_AUTH_TOKEN is set, verification becomes real and
 mandatory.
 """
 from __future__ import annotations
+import asyncio
 import base64
 import hashlib
 import hmac
 import logging
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 from xml.sax.saxutils import escape
 
 import httpx
@@ -22,6 +23,34 @@ import httpx
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+# ── Retry helper (T9) — shared by every external provider call in this
+# module. Retries transient failures (5xx, network errors — never 4xx,
+# those are our bug/bad-input, not the provider's) with short backoff,
+# then gives up and returns None so the CALLER degrades gracefully
+# (empty audio, stub-shaped transcript, etc.) instead of ever raising
+# up into the WS handler and killing the call.
+async def _call_with_retry(
+    fn: Callable[[], Awaitable[httpx.Response]], *, attempts: int = 3, backoff_sec: float = 0.5,
+) -> Optional[httpx.Response]:
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, attempts + 1):
+        try:
+            r = await fn()
+            if r.status_code >= 500:
+                raise httpx.HTTPStatusError(
+                    f"{r.status_code} from provider", request=r.request, response=r
+                )
+            r.raise_for_status()  # 4xx — not retryable, but still handled by the caller
+            return r
+        except Exception as e:
+            last_exc = e
+            logger.warning("provider call failed (attempt %d/%d): %s", attempt, attempts, e)
+            if attempt < attempts:
+                await asyncio.sleep(backoff_sec * attempt)
+    logger.error("provider call failed after %d attempts: %s", attempts, last_exc)
+    return None
 
 
 # ── Plivo signature (V2) ────────────────────────────────────────────
@@ -111,36 +140,35 @@ async def transcribe_utterance(
             "confidence": None, "engine": engine, "stub": True,
         }
 
-    try:
+    async with httpx.AsyncClient(timeout=20) as client:
         if engine == "sarvam":
-            async with httpx.AsyncClient(timeout=20) as client:
-                r = await client.post(
-                    SARVAM_URL,
-                    headers={"api-subscription-key": settings.SARVAM_API_KEY},
-                    files={"file": ("audio.wav", audio_bytes, "audio/wav")},
-                    data={"language_code": language or "te-IN", "model": "saarika:v2"},
-                )
-                r.raise_for_status()
-                data = r.json()
-                return {"text": data.get("transcript", ""), "confidence": None,
-                        "engine": "sarvam", "stub": False}
+            r = await _call_with_retry(lambda: client.post(
+                SARVAM_URL,
+                headers={"api-subscription-key": settings.SARVAM_API_KEY},
+                files={"file": ("audio.wav", audio_bytes, "audio/wav")},
+                data={"language_code": language or "te-IN", "model": "saarika:v2"},
+            ))
+            if r is None:
+                return {"text": "", "confidence": None, "engine": engine, "stub": False,
+                        "error": "provider unavailable after retries"}
+            data = r.json()
+            return {"text": data.get("transcript", ""), "confidence": None,
+                    "engine": "sarvam", "stub": False}
         else:
-            async with httpx.AsyncClient(timeout=20) as client:
-                r = await client.post(
-                    f"{DEEPGRAM_URL}?language={language or 'en'}&model=nova-2",
-                    headers={"Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
-                             "Content-Type": "audio/wav"},
-                    content=audio_bytes,
-                )
-                r.raise_for_status()
-                data = r.json()
-                alt = (data.get("results", {}).get("channels", [{}])[0]
-                       .get("alternatives", [{}])[0])
-                return {"text": alt.get("transcript", ""), "confidence": alt.get("confidence"),
-                        "engine": "deepgram", "stub": False}
-    except Exception as e:
-        logger.exception("STT call failed (engine=%s)", engine)
-        return {"text": "", "confidence": None, "engine": engine, "stub": False, "error": str(e)[:240]}
+            r = await _call_with_retry(lambda: client.post(
+                f"{DEEPGRAM_URL}?language={language or 'en'}&model=nova-2",
+                headers={"Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
+                         "Content-Type": "audio/wav"},
+                content=audio_bytes,
+            ))
+            if r is None:
+                return {"text": "", "confidence": None, "engine": engine, "stub": False,
+                        "error": "provider unavailable after retries"}
+            data = r.json()
+            alt = (data.get("results", {}).get("channels", [{}])[0]
+                   .get("alternatives", [{}])[0])
+            return {"text": alt.get("transcript", ""), "confidence": alt.get("confidence"),
+                    "engine": "deepgram", "stub": False}
 
 
 # ── TTS (T6) ──────────────────────────────────────────────────────────
@@ -163,14 +191,13 @@ async def synthesize_speech(text: str, *, voice_id: str = DEFAULT_VOICE_ID) -> b
         logger.warning("ELEVENLABS_API_KEY not set; returning empty stub audio")
         return b""
     async with httpx.AsyncClient(timeout=20) as client:
-        r = await client.post(
+        r = await _call_with_retry(lambda: client.post(
             ELEVENLABS_URL.format(voice_id=voice_id),
             headers={"xi-api-key": settings.ELEVENLABS_API_KEY, "Content-Type": "application/json"},
             json={"text": text, "model_id": "eleven_turbo_v2_5",
                   "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
-        )
-        r.raise_for_status()
-        return r.content
+        ))
+        return r.content if r is not None else b""  # graceful: silence, not a crash
 
 
 # ── VOICE_TURN latency log (per api-conventions.md — exact format) ────
