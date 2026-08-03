@@ -1,9 +1,9 @@
 # GoGaga Backend — Phase 2 Report (Voice Core)
 
-Semi-autonomous loop run, 2026-08-03. Branch `Klara-ai`, commits `6732683..5a2eab1`
-(T1 was completed in a prior turn; this run covers T2-T9). Zero permission
-stops on autonomous work; the one genuine 📞 gate (T2's real dial-in) was
-never reachable because `PLIVO_PHONE_NUMBER`/`PUBLIC_BASE_URL` don't exist.
+Semi-autonomous loop run, 2026-08-03. Branch `Klara-ai`, commits `6732683..a5af8a0`
+(T1 was completed in a prior turn; this run covers T2-T9 + a follow-up hardening
+commit). Zero permission stops on autonomous work; the one genuine 📞 gate
+(T2's real dial-in) was never reachable because `PLIVO_PHONE_NUMBER`/`PUBLIC_BASE_URL` don't exist.
 
 ## Environment reality vs. the task brief
 
@@ -142,6 +142,27 @@ Process** #1/#2; keyword search returns **neither** (no stemming:
   in the DB; every other test business created during this run was
   cascade-deleted.
 
+### Post-loop follow-up — critical import fix + auth hardening (`a5af8a0`)
+
+Found on a subsequent loop invocation that `deps.py` (committed in Phase 1 T3/T4/T5,
+`7bd87be`) imported `is_jti_blacklisted` from `security.py`, but that function
+was only in the working tree — the committed HEAD had been import-broken since
+Phase 1. Fixed and committed alongside three other improvements:
+
+- **`security.py`**: `blacklist_jti()` + `is_jti_blacklisted()` — fixes the
+  broken import; enables JWT revocation on logout.
+- **`auth.py`**: `POST /auth/logout` blacklists the token's JTI for its remaining
+  TTL; password-strength validator added to `RegisterBusinessIn` +
+  `PasswordResetIn` (uppercase, lowercase, digit, special char required);
+  Resend email integration for `POST /auth/password/forgot` when
+  `RESEND_API_KEY` is configured.
+- **`wiki.py`**: All endpoints migrated from `require_business` →
+  `require_role("viewer"/"manager")` — pure JWT RBAC, no API-key dual-auth.
+- **`run.sh`**: marked executable.
+
+**Verified**: logout 200→401 (token blacklisted), weak-password register 422,
+wiki GET 200 / POST 201 / unauthenticated 401. **Regression: GREEN.**
+
 ## Blocked Items
 
 | Task | Reason | Error/evidence | What's needed to unblock |
@@ -220,4 +241,5 @@ BLOCKED ITEMS: T2 (no real call reachable), T3 (depends on T2), T4
 (real STT quality), T5 partial (real persona quality), T6 (full
 2-way loop + latency evidence) — all credential/infrastructure gaps,
 not code failures. T1, T7, T8, T9 fully done. T5 structurally done,
-persona-quality unverified.
+persona-quality unverified. Post-loop: critical import fix + auth
+hardening committed (`a5af8a0`), regression green.
