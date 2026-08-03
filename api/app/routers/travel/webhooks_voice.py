@@ -18,7 +18,10 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter, Header, HTTPException, Request, Response,
+    WebSocket, WebSocketDisconnect, status,
+)
 
 from app.core.config import settings
 from app.database import get_supabase_admin
@@ -94,3 +97,79 @@ async def answer_call(
 
     stream_url = _webhook_url(request).replace("/voice", "/stream").replace("https://", "wss://").replace("http://", "ws://")
     return Response(content=stream_xml(stream_url=stream_url), media_type="application/xml")
+
+
+# ── T3: media stream ─────────────────────────────────────────────
+# Plivo's Audio Streaming protocol sends one JSON frame per event over
+# the WS connection opened via the <Stream> element above:
+#   {"event": "start", "start": {"callId": "...", "streamId": "...", ...}}
+#   {"event": "media",  "media": {"payload": "<base64 audio>", "timestamp": ..., ...}}
+#   {"event": "stop",   "stop":  {"callId": "...", ...}}
+# No signature scheme applies to the WS upgrade itself in Plivo's spec —
+# the stream URL is only ever handed out by our own signature-verified
+# answer webhook above, which is the actual trust boundary.
+def _parse_started_at(row: dict) -> datetime | None:
+    raw = row.get("started_at")
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+@router.websocket("/{provider}/stream")
+async def media_stream(websocket: WebSocket, provider: str):
+    if provider not in _SUPPORTED_PROVIDERS:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    db = get_supabase_admin()
+    call_row: dict | None = None
+    media_frame_count = 0
+
+    try:
+        while True:
+            msg = await websocket.receive_json()
+            event = msg.get("event")
+
+            if event == "start":
+                call_id = (msg.get("start") or {}).get("callId") or (msg.get("start") or {}).get("streamId")
+                rows = (
+                    db.table("travel_calls").select("*")
+                    .eq("provider_sid", call_id)
+                    .order("created_at", desc=True).limit(1).execute().data
+                )
+                call_row = rows[0] if rows else None
+                logger.info("stream start: call=%s row_found=%s", call_id, bool(call_row))
+
+            elif event == "media":
+                media_frame_count += 1
+                # T4 wires msg["media"]["payload"] (base64 audio) into STT here.
+
+            elif event == "stop":
+                if call_row:
+                    started_at = _parse_started_at(call_row)
+                    now = datetime.now(timezone.utc)
+                    duration = int((now - started_at).total_seconds()) if started_at else None
+                    db.table("travel_calls").update({
+                        "status":       "completed",
+                        "ended_at":     now.isoformat(),
+                        "duration_sec": duration,
+                    }).eq("id", call_row["id"]).execute()
+                    logger.info("stream stop: call=%s frames=%d duration_sec=%s",
+                                call_row.get("provider_sid"), media_frame_count, duration)
+                break
+
+    except WebSocketDisconnect:
+        # Caller/provider dropped without a clean "stop" frame — still
+        # close out the call row rather than leaving it 'active' forever.
+        if call_row and call_row.get("status") == "active":
+            started_at = _parse_started_at(call_row)
+            now = datetime.now(timezone.utc)
+            duration = int((now - started_at).total_seconds()) if started_at else None
+            db.table("travel_calls").update({
+                "status": "failed", "ended_at": now.isoformat(), "duration_sec": duration,
+            }).eq("id", call_row["id"]).execute()
+            logger.warning("stream disconnected without stop frame: call=%s", call_row.get("provider_sid"))
