@@ -22,3 +22,6 @@ cryptography==44.0.0
 # Utilities
 python-dotenv==1.0.1
 python-multipart==0.0.20
+
+# Wiki semantic search (Phase 2 T8) — local embedder, no API key needed
+fastembed==0.8.0
