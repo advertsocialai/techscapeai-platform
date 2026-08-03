@@ -7,10 +7,13 @@
     {"method":"POST","path":"/api/techscape/v1/users","body":{"email":"matrix-probe@techscapeai.com","password":"TestPass123!","role":"agent"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
     {"method":"GET","path":"/api/techscape/v1/branches","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
     {"method":"POST","path":"/api/techscape/v1/branches","body":{"name":"Matrix Test Branch","city":"Hyderabad"},"expect":{"super_admin":201,"admin":403,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/leads","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
+    {"method":"POST","path":"/api/travel/v1/leads","body":{"raw_message":"matrix-probe lead","source":"website"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
     {"method":"POST","path":"/api/techscape/v1/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
   ],
   "_notes": [
-    "travel_leads endpoint removed from this P1 matrix — leads/assigned-only scoping is P2 scope per gogaga-backend Phase gates, not built in this phase.",
-    "PATCH/DELETE target-id tests, out-of-branch 404s, role-elevation 403s, and the token-invalidation chain were verified in T3-T5 task chains with real per-role DB fixtures (not this static spec) — see PHASE1_REPORT.md."
+    "leads.py is T6-PARTIAL: role-gated only (read=agent+, write=manager+ — hence viewer:403 on GET, agent:403 on POST). Assigned-only row scoping (an agent should eventually see only THEIR leads) is deferred to P2, pending travel_leads.assigned_agent, which doesn't exist yet. This matrix only proves the role gate, not row-level scoping.",
+    "PATCH/DELETE target-id tests, out-of-branch 404s, role-elevation 403s, and the token-invalidation chain were verified in T3-T5 task chains with real per-role DB fixtures (not this static spec) — see PHASE1_REPORT.md.",
+    "logout is tested separately from the table above in practice (each call invalidates that role's own token) — run it last per role, not interleaved with the other rows."
   ]
 }

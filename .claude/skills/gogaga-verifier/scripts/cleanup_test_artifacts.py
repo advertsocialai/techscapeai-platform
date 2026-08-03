@@ -3,12 +3,23 @@
 GoGaga test-artifact cleanup — remove rows created by verification runs.
 
 The access matrix and task-verification chains create real rows (wiki entries
-titled 'matrix-test', users like *@test.local, branches named 'Matrix Test%').
-Run this after an acceptance sweep to keep the dev DB clean.
+titled 'matrix-test', probe users, probe branches). Run this after an
+acceptance sweep to keep the dev DB clean.
+
+NOTE (P1 recon): `*@test.local` doesn't actually work as a test-user marker
+in this repo — pydantic's EmailStr rejects `.local` as a reserved TLD, so no
+row can ever be created with that domain in the first place. P1 established
+`@techscapeai.com` with a distinguishing local-part prefix as the real
+convention instead (see TEST_MARKERS below). Also: branches created by P1
+are a dedicated `branches` table, NOT `travel_franchisees` (a separate,
+real franchise-partner concept — never target it here).
 
 SAFETY: only deletes rows matching the known test markers below. Prints what
 it will delete and requires --yes to actually execute. NEVER extend the
-patterns to anything that could match real data.
+patterns to anything that could match real data. In particular, do NOT add
+a broad `%fixture%` pattern — `regression-fixture@techscapeai.com` is a
+deliberately PERSISTENT dev-login fixture (see gogaga-verifier SKILL.md
+Setup section) and must not be swept up by cleanup.
 
 Usage:
   python3 cleanup_test_artifacts.py            # dry run — shows matches
@@ -26,11 +37,17 @@ try:
 except ImportError:
     sys.exit("pip install supabase --break-system-packages (or in your venv)")
 
-# (table, column, operator, pattern) — the ONLY things this script may touch
+# (table, column, operator, pattern) — the ONLY things this script may touch.
+# Deliberately narrow: matrix-probe-*, t6-*, probe-* prefixes are the actual
+# naming conventions P1 verification runs used — NOT a catch-all like
+# '%fixture%', which would also delete the persistent regression fixture.
 TEST_MARKERS = [
     ("travel_wiki", "title", "eq",   "matrix-test"),
-    ("ts_users",    "email", "like", "%@test.local"),
-    ("travel_franchisees", "name", "like", "Matrix Test%"),  # or travel_branches per P1 recon
+    ("branches",    "name",  "like", "Matrix Test%"),
+    ("branches",    "name",  "like", "probe-%"),
+    ("ts_users",    "email", "like", "matrix-probe%@techscapeai.com"),
+    ("ts_users",    "email", "like", "t6-%@techscapeai.com"),
+    ("ts_users",    "email", "like", "probe-%@techscapeai.com"),
 ]
 
 

@@ -7,12 +7,34 @@ per role via make_test_token.py, hits each endpoint, and prints a PASS/FAIL
 table. Exits non-zero if any cell mismatches — suitable for the phase
 acceptance sweep and CI.
 
+IMPORTANT (found the hard way in P1): this repo's RBAC is DB-row-based, not
+token-claim-based. `core/deps.py`'s `get_current_user` re-fetches the real
+ts_users row by the token's `sub` claim and authorizes on THAT row's actual
+`role` column — the token's own `role` claim is not read for authorization.
+So minting a token with `--role super_admin` but no real `--sub`/`--biz`
+either fails outright (no active business/user to resolve) or, worse,
+silently tests the wrong role. You MUST have one real ts_users row per
+role, in an ACTIVE ts_businesses, before running this script. The "admin"
+test identity below corresponds to a row stored with role='manager' (see
+core/deps.py's docstring for why bare 'admin' means something else here).
+
+Setup (one-time per test run — see PHASE1_REPORT.md for a full worked
+example): register a test business via POST /auth/register-business, then
+create one user per role via POST /users (role: super_admin, manager,
+agent, viewer), then export their real ids:
+  export GOGAGA_TEST_BIZ=<business id>
+  export GOGAGA_SUB_SUPER_ADMIN=<super_admin user id>
+  export GOGAGA_SUB_ADMIN=<manager-role user id — this IS the "admin" column>
+  export GOGAGA_SUB_AGENT=<agent-role user id>
+  export GOGAGA_SUB_VIEWER=<viewer-role user id>
+
 Usage:
   python3 access_matrix.py --spec ../references/matrix-spec.json
   python3 access_matrix.py --spec ../references/matrix-spec.json --only /api/v1/users
 
-Env: GOGAGA_API (default http://localhost:8000), GOGAGA_JWT_SECRET, GOGAGA_JWT_ALG
-Requires: pip install pyjwt requests
+Env: GOGAGA_API (default http://localhost:8000), GOGAGA_JWT_SECRET, GOGAGA_JWT_ALG,
+     GOGAGA_TEST_BIZ, GOGAGA_SUB_SUPER_ADMIN, GOGAGA_SUB_ADMIN, GOGAGA_SUB_AGENT, GOGAGA_SUB_VIEWER
+Requires: pip install pyjwt requests (project venv — system python3 may lack pyjwt)
 """
 import argparse
 import json
@@ -27,12 +49,28 @@ except ImportError:
     sys.exit("pip install requests --break-system-packages (or in your venv)")
 
 ROLES = ["super_admin", "admin", "agent", "viewer"]
+_SUB_ENV = {
+    "super_admin": "GOGAGA_SUB_SUPER_ADMIN",
+    "admin":       "GOGAGA_SUB_ADMIN",   # stored as role='manager' — see docstring
+    "agent":       "GOGAGA_SUB_AGENT",
+    "viewer":      "GOGAGA_SUB_VIEWER",
+}
 HERE = Path(__file__).parent
 
 
 def mint(role: str) -> str:
+    biz = os.environ.get("GOGAGA_TEST_BIZ")
+    sub = os.environ.get(_SUB_ENV[role])
+    if not biz or not sub:
+        sys.exit(
+            f"Missing {_SUB_ENV[role]} and/or GOGAGA_TEST_BIZ for role={role}. "
+            "This repo's RBAC reads the real DB row, not the token claim — "
+            "you need a real per-role test user first. See this script's "
+            "module docstring for the one-time setup sequence."
+        )
     out = subprocess.run(
-        [sys.executable, str(HERE / "make_test_token.py"), "--role", role, "--ttl", "600"],
+        [sys.executable, str(HERE / "make_test_token.py"),
+         "--role", role, "--biz", biz, "--sub", sub, "--ttl", "600"],
         capture_output=True, text=True,
     )
     if out.returncode != 0:

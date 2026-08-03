@@ -18,15 +18,23 @@ Verification toolkit for the GoGaga backend. Core principle: **a task is done wh
 Set environment for the scripts:
 ```bash
 export GOGAGA_API=http://localhost:8000        # FastAPI base URL
-export GOGAGA_TEST_EMAIL=<working login email>
+export GOGAGA_TEST_EMAIL=regression-fixture@techscapeai.com   # persistent P1 dev fixture — do not delete
 export GOGAGA_TEST_PASSWORD=<working password>
+export GOGAGA_LOGIN_PATH=http://localhost:8000/api/techscape/v1/auth/login   # real prefix has /v1 — regression_check.sh's default lacks it
+export GOGAGA_WIKI_PATH=http://localhost:8000/api/travel/v1/wiki             # same
 # Only needed for token minting (read from api's own config if possible):
 export GOGAGA_JWT_SECRET=<settings.JWT_SECRET value>   # access tokens; refresh uses JWT_REFRESH_SECRET
 export GOGAGA_JWT_ALG=HS256
 export GOGAGA_TEST_BIZ=<an ACTIVE ts_businesses.id>      # required: tokens carry a biz claim
 export GOGAGA_TEST_SUB=<a real ts_users.id>              # recommended: require_business fetches the user row
+# For access_matrix.py specifically — one real user PER ROLE is required
+# (this repo's RBAC re-reads the DB row, not the token's role claim):
+export GOGAGA_SUB_SUPER_ADMIN=<user id with role=super_admin>
+export GOGAGA_SUB_ADMIN=<user id with role=manager>      # yes, manager — see core/deps.py mapping
+export GOGAGA_SUB_AGENT=<user id with role=agent>
+export GOGAGA_SUB_VIEWER=<user id with role=viewer>
 ```
-IMPORTANT: read the JWT secret/alg/claim-shape from `api/app/core/security.py` first — the minting script now matches the real shape (sub/biz/role/type/jti, HS256, JWT_SECRET). require_business also validates the biz row is ACTIVE and fetches the user — use real ids.
+IMPORTANT: read the JWT secret/alg/claim-shape from `api/app/core/security.py` first — the minting script now matches the real shape (sub/biz/role/type/jti, HS256, JWT_SECRET). require_business also validates the biz row is ACTIVE and fetches the user — use real ids. Real route prefixes are `/api/techscape/v1/*` and `/api/travel/v1/*` (P1 recon corrected this from an earlier no-`/v1` assumption).
 
 ## Scripts (run, don't rewrite)
 
