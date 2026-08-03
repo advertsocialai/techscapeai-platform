@@ -86,6 +86,41 @@ File: `api/app/routers/techscape/branches.py` (+ `branch_service.py`).
   "conversion_rate":0}` stub with a P4 comment (real aggregates need
   `travel_leads`/`travel_calls` linkage that doesn't exist until P2).
 
+### T6 — Partial: RBAC-gated leads
+Originally missing from this report entirely (caught by user review, not
+self-caught). File: `api/app/routers/travel/leads.py`.
+
+**What was built**: role gating consistent with `core/deps.py`'s
+hierarchy, switched from the legacy business-only `require_business` to
+`get_current_user`/`require_role` (same pattern as `wiki.py`/`users.py`/
+`branches.py`). `GET` (list, `/{id}`) requires `agent`+ (rank≥2); `POST`
+(ingest) and `PUT /{id}/status` require `manager`+ (rank≥3, == spec's
+"admin+"). Business scoping now comes from the caller's own
+`user["business_id"]` instead of the API-key-resolvable `require_business`
+principal — this is a real (intentional) behavior change: leads endpoints
+are now JWT-only, no more `X-API-Key` access, matching the JWT-only
+convention every other Phase 1 route already uses.
+
+**What's formally deferred to Phase 2**: assigned-only row scoping (an
+agent should eventually see/act only on leads where
+`assigned_agent == self`). `travel_leads.assigned_agent` doesn't exist —
+it's a named P2 addition in `gogaga-backend/references/schema.md`. Building
+row-level filtering against a column that doesn't exist yet would mean
+redoing it once P2 adds it, so this phase stops at the coarse role gate:
+any agent+ can read all of the business's leads, any manager+ can write
+any of them. No per-row narrowing yet.
+
+**Verification** (fresh isolated test business, cascade-cleaned after):
+```
+POST /leads   (write)  super=201  manager=201  agent=403  viewer=403
+GET  /leads   (read)   super=200  manager=200  agent=200  viewer=403
+GET  /leads/{id}       agent=200
+PUT  /leads/{id}/status agent=403  manager=200
+bad token -> 401 {"detail":"Invalid token"}
+```
+Regression: PASS before and after. Cleanup: 4 users + 3 leads
+cascade-deleted via the isolated test business's `ts_businesses` row.
+
 ### T7 — Acceptance sweep
 `access_matrix.py` as shipped cannot run against this repo (see Decisions
 — it doesn't pass `--biz`/`--sub`, and this repo's RBAC is DB-row-based,
@@ -183,8 +218,21 @@ reverted.
    users. Avoids touching the 6 pre-existing real admin accounts found
    in the DB entirely.
 
+7. **`leads.py` switched from `require_business` to `get_current_user`/
+   `require_role`** (T6, added after initial review) — same JWT-only
+   pattern as `wiki.py`/`users.py`/`branches.py`. This drops `X-API-Key`
+   access to the leads HTTP endpoints. Checked before making the change:
+   `inbound_dispatcher.py` (the WhatsApp/webhook lead-creation path) calls
+   `LeadService` directly and never goes through this router, so nothing
+   that currently exists breaks.
+
 ## TODOs for Phase 2
 
+- **Assigned-only leads scoping** (T6 remainder): `travel_leads` needs an
+  `assigned_agent` FK column (named P2 work in `schema.md`) before an
+  agent's `GET /leads` can be narrowed to their own rows. Today any
+  agent+ sees the whole business's leads. Building it now would have
+  meant redoing it once P2 adds the column.
 - `access_matrix.py`'s `mint()` doesn't pass `--biz`/`--sub` and will
   always fail against this repo — needs either real per-role fixture
   user ids wired in, or a documented "this repo's RBAC is DB-row-based,
