@@ -8,6 +8,7 @@ from fastapi import APIRouter
 
 from .booking     import router as booking_router
 from .bookings    import router as bookings_router
+from .calls       import router as calls_router, ws_router as calls_ws_router
 from .catalog     import router as catalog_router
 from .customer    import router as customer_router
 from .demo        import router as demo_router
@@ -38,5 +39,9 @@ travel_router.include_router(bookings_router,   prefix="/bookings",    tags=["Tr
 travel_router.include_router(playbooks_router,  prefix="/playbooks",   tags=["Travel · TravelWorkflow OS (24 UCs)"])
 travel_router.include_router(demo_router,       prefix="/demo",        tags=["Travel · Demo"])
 travel_router.include_router(webhooks_voice_router, prefix="/webhook",  tags=["Travel · Voice Webhooks"])
+travel_router.include_router(calls_router,      prefix="/calls",       tags=["Travel · Calls"])
 
-__all__ = ["travel_router"]
+# NOT included in travel_router — mounted directly on `app` with no
+# prefix in main.py so the live-feed WS is exactly ws://<host>/ws/calls/{id},
+# matching gogaga-verifier/scripts/ws_probe.py and the api-contract.md target.
+__all__ = ["travel_router", "calls_ws_router"]

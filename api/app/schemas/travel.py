@@ -446,3 +446,32 @@ class PlaybookRunOut(_Base):
     delivery:      dict[str, Any] = {}
     error_message: Optional[str] = None
     created_at:    datetime
+
+
+# ── Calls (Phase 2 T7) ───────────────────────────────────────────
+class CallOut(_Base):
+    id:              UUID
+    business_id:     UUID
+    lead_id:         Optional[UUID] = None
+    provider_sid:    Optional[str] = None
+    status:          str
+    mode:            str
+    duration_sec:    Optional[int] = None
+    recording_url:   Optional[str] = None
+    sentiment_score: Optional[float] = None
+    stt_engine:      Optional[str] = None
+    language:        str = "en"
+    started_at:      Optional[datetime] = None
+    ended_at:        Optional[datetime] = None
+    created_at:      datetime
+
+
+class TranscriptOut(_Base):
+    id:              UUID
+    call_id:         UUID
+    speaker:         str
+    text_original:   str
+    text_translated: Optional[str] = None
+    timestamp_ms:    int
+    sentiment:       dict[str, Any] = {}
+    created_at:      datetime

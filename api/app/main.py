@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.routers import api_router
+from app.routers.travel import calls_ws_router
 
 # Logging configuration
 logging.basicConfig(
@@ -76,6 +77,9 @@ app.add_middleware(
 # Routes
 # ──────────────────────────────────────────────
 app.include_router(api_router, prefix="/api")
+# No /api prefix, deliberately — matches gogaga-verifier/scripts/
+# ws_probe.py and the api-contract.md target: ws://<host>/ws/calls/{id}.
+app.include_router(calls_ws_router)
 
 
 # ──────────────────────────────────────────────

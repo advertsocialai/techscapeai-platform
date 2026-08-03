@@ -26,6 +26,7 @@ from fastapi import (
 
 from app.core.config import settings
 from app.database import get_supabase_admin
+from app.services.travel import call_feed
 from app.services.travel.voice import (
     select_stt_engine, stream_xml, transcribe_utterance, verify_plivo_signature,
 )
@@ -148,6 +149,11 @@ async def media_stream(websocket: WebSocket, provider: str):
                 )
                 call_row = rows[0] if rows else None
                 logger.info("stream start: call=%s row_found=%s", call_id, bool(call_row))
+                if call_row:
+                    await call_feed.publish(call_row["id"], {
+                        "type": "call_status", "call_id": call_row["id"],
+                        "status": "active", "mode": call_row.get("mode", "ai"),
+                    })
 
             elif event == "media":
                 media_frame_count += 1
@@ -177,6 +183,10 @@ async def media_stream(websocket: WebSocket, provider: str):
                     }).eq("id", call_row["id"]).execute()
                     logger.info("stream stop: call=%s frames=%d duration_sec=%s",
                                 call_row.get("provider_sid"), media_frame_count, duration)
+                    await call_feed.publish(call_row["id"], {
+                        "type": "call_status", "call_id": call_row["id"],
+                        "status": "completed", "mode": call_row.get("mode", "ai"),
+                    })
 
                     if audio_chunks:
                         engine = select_stt_engine(call_row.get("language"))
@@ -187,15 +197,23 @@ async def media_stream(websocket: WebSocket, provider: str):
                         db.table("travel_calls").update({"stt_engine": engine}).eq(
                             "id", call_row["id"]
                         ).execute()
-                        db.table("travel_transcripts").insert({
+                        transcript_row = db.table("travel_transcripts").insert({
                             "call_id":       call_row["id"],
                             "speaker":       "customer",
                             "text_original": result["text"],
                             "timestamp_ms":  call_start_ms or 0,
-                        }).execute()
+                        }).execute().data[0]
                         logger.info("transcript written: call=%s engine=%s stub=%s len=%d",
                                     call_row.get("provider_sid"), engine,
                                     result.get("stub"), len(result["text"]))
+                        await call_feed.publish(call_row["id"], {
+                            "type": "transcript", "call_id": call_row["id"],
+                            "seq": 1, "speaker": transcript_row["speaker"],
+                            "text_original": transcript_row["text_original"],
+                            "text_translated": transcript_row.get("text_translated"),
+                            "language": call_row.get("language", "en"),
+                            "timestamp_ms": transcript_row["timestamp_ms"], "is_final": True,
+                        })
                 break
 
     except WebSocketDisconnect:
