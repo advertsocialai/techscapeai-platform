@@ -155,6 +155,22 @@ class LeadService:
             return None
         return row
 
+    def update_extracted_fields(self, lead_id: UUID, business_id: UUID,
+                                fields: dict) -> dict | None:
+        """Applied by the AI engine's extract_lead_details tool during a
+        live call — only overwrites fields Claude actually extracted
+        (never assignment; that's a separate manager+ action)."""
+        clean = {k: v for k, v in fields.items() if v is not None
+                 and k in ("destination_hint", "pax_count", "budget_inr", "duration_days")}
+        if not clean:
+            return None
+        r = (
+            self.db.table("travel_leads").update(clean)
+            .eq("id", str(lead_id)).eq("business_id", str(business_id))
+            .execute()
+        )
+        return r.data[0] if r.data else None
+
     def assign(self, lead_id: UUID, business_id: UUID,
                assigned_agent: Optional[UUID]) -> dict | None:
         r = (
