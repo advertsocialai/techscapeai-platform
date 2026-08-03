@@ -141,3 +141,45 @@ async def transcribe_utterance(
     except Exception as e:
         logger.exception("STT call failed (engine=%s)", engine)
         return {"text": "", "confidence": None, "engine": engine, "stub": False, "error": str(e)[:240]}
+
+
+# ── TTS (T6) ──────────────────────────────────────────────────────────
+# NOTE: ElevenLabs' real streaming endpoint yields audio chunks as they're
+# generated (needed for the sentence-level / barge-in design). Genuinely
+# UNVERIFIED — no ELEVENLABS_API_KEY exists to call it with, and there is
+# no meaningful proxy for "does barge-in interrupt mid-sentence in real
+# time" without a live call. See PHASE2_REPORT.md Blocked Items — this
+# function is written to the real API shape but not exercised.
+ELEVENLABS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream"
+DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # ElevenLabs' default "Rachel" voice
+
+
+async def synthesize_speech(text: str, *, voice_id: str = DEFAULT_VOICE_ID) -> bytes:
+    """Returns raw audio bytes for one sentence. Caller is responsible for
+    sentence-level chunking (split on '.', '!', '?') so playback can start
+    before the whole reply is generated — that's the latency-critical part
+    and it's exactly the part that can't be verified without a live call."""
+    if not tts_configured():
+        logger.warning("ELEVENLABS_API_KEY not set; returning empty stub audio")
+        return b""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.post(
+            ELEVENLABS_URL.format(voice_id=voice_id),
+            headers={"xi-api-key": settings.ELEVENLABS_API_KEY, "Content-Type": "application/json"},
+            json={"text": text, "model_id": "eleven_turbo_v2_5",
+                  "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
+        )
+        r.raise_for_status()
+        return r.content
+
+
+# ── VOICE_TURN latency log (per api-conventions.md — exact format) ────
+def log_voice_turn(
+    *, call_id: str, seq: int, stt_ms: int, llm_ttft_ms: int, llm_total_ms: int,
+    tts_ttfb_ms: int, total_ms: int, engine: str, lang: str,
+) -> None:
+    logger.info(
+        "VOICE_TURN call_id=%s seq=%d stt_ms=%d llm_ttft_ms=%d llm_total_ms=%d "
+        "tts_ttfb_ms=%d total_ms=%d engine=%s lang=%s",
+        call_id, seq, stt_ms, llm_ttft_ms, llm_total_ms, tts_ttfb_ms, total_ms, engine, lang,
+    )
