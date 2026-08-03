@@ -116,6 +116,73 @@ class BusinessService:
             "password_hash": hash_password(new_password),
         }).eq("id", str(user_id)).execute()
 
+    # ── Users — Phase 1 CRUD (branch-scoped) ────────────────────
+    def list_users(
+        self,
+        *,
+        business_id: UUID,
+        branch_id: Optional[UUID] = None,
+        role: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """branch_id=None means unscoped (super_admin sees the whole business)."""
+        q = self.db.table("ts_users").select("*", count="exact").eq(
+            "business_id", str(business_id)
+        )
+        if branch_id is not None:
+            q = q.eq("branch_id", str(branch_id))
+        if role:
+            q = q.eq("role", role)
+        if status:
+            q = q.eq("status", status)
+        r = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        return (r.data or []), (r.count or 0)
+
+    def get_user_scoped(
+        self, user_id: UUID, *, business_id: UUID, branch_id: Optional[UUID] = None
+    ) -> dict | None:
+        """branch_id=None means unscoped (super_admin). Returns None if the
+        user doesn't exist OR is outside the caller's business/branch scope
+        — callers must turn None into 404 (never leak existence)."""
+        r = (
+            self.db.table("ts_users").select("*")
+            .eq("id", str(user_id)).eq("business_id", str(business_id))
+            .limit(1).execute()
+        )
+        if not r.data:
+            return None
+        user = r.data[0]
+        if branch_id is not None and user.get("branch_id") != str(branch_id):
+            return None
+        return user
+
+    def create_user_scoped(self, *, business_id: UUID, payload: dict) -> dict:
+        row = {
+            "business_id": str(business_id),
+            "email": payload["email"].lower(),
+            "password_hash": hash_password(payload["password"]),
+            "first_name": payload.get("first_name"),
+            "last_name": payload.get("last_name"),
+            "role": payload.get("role", "agent"),
+            "status": "active",
+            "branch_id": str(payload["branch_id"]) if payload.get("branch_id") else None,
+        }
+        return self.db.table("ts_users").insert(row).execute().data[0]
+
+    def update_user(self, user_id: UUID, fields: dict) -> dict:
+        clean = {k: (str(v) if k == "branch_id" and v is not None else v)
+                 for k, v in fields.items() if v is not None}
+        r = self.db.table("ts_users").update(clean).eq("id", str(user_id)).execute()
+        return r.data[0]
+
+    def deactivate_user(self, user_id: UUID) -> dict:
+        r = self.db.table("ts_users").update({"status": "inactive"}).eq(
+            "id", str(user_id)
+        ).execute()
+        return r.data[0]
+
     # ── Subscription enforcement ─────────────────────────────
     def can_send_messages(self, business_id: UUID, n: int = 1) -> tuple[bool, str]:
         """Returns (allowed, reason) given current monthly usage + tier cap."""

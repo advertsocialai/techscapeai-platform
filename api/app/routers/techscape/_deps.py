@@ -19,7 +19,7 @@ import jwt
 from fastapi import Header, HTTPException, Request, status
 
 from app.core.config import settings
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, is_jti_blacklisted
 from app.services.techscape import BusinessService
 from app.services.techscape.rate_limit import get_rate_limiter
 
@@ -58,6 +58,8 @@ def require_business(
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
         if claims.get("type") != "access":
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong token type")
+        if is_jti_blacklisted(claims.get("jti")):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token has been revoked")
         try:
             biz_uuid = UUID(claims["biz"])
         except Exception:
@@ -71,6 +73,15 @@ def require_business(
                 user = user_row[0] if user_row else {"id": claims["sub"], "role": claims.get("role", "user")}
             except Exception:
                 user = {"id": claims["sub"], "role": claims.get("role", "user")}
+            # A found row that is no longer active (soft-deleted / disabled)
+            # must invalidate the token immediately — same rule core/deps.py
+            # already enforces. Without this, DELETE /users/{id} looked like
+            # it worked (200, status=inactive in the DB) while the deleted
+            # user's existing token kept working on every _deps.py-gated route.
+            if user_row and user.get("status") != "active":
+                raise HTTPException(
+                    status.HTTP_403_FORBIDDEN, f"User status is {user.get('status')}"
+                )
 
     # 2. API key fallback
     if principal is None and x_api_key:

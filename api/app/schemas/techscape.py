@@ -263,3 +263,80 @@ class AnalyticsOverview(_Base):
     total_cost_30d: float
     delivery_rate: float
     by_channel: dict[str, int]
+
+
+# ── Users (Phase 1) ──────────────────────────────────────────────
+# Role literal for NEW rows only. Legacy rows may carry "admin"/"user"
+# (pre-migration values) — UserOut.role is a plain str so those still
+# serialize; see app/core/deps.py for the full rank mapping.
+NewUserRole = Literal["super_admin", "manager", "agent", "viewer"]
+UserStatus = Literal["active", "disabled", "inactive"]
+
+
+class UserOut(_Base):
+    id: UUID
+    business_id: UUID
+    branch_id: Optional[UUID] = None
+    email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    role: str
+    status: str
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserListOut(_Base):
+    items: list[UserOut]
+    total: int
+
+
+class UserCreateIn(_Base):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=200)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    role: NewUserRole = "agent"
+    branch_id: Optional[UUID] = None
+
+
+class UserUpdateIn(_Base):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    branch_id: Optional[UUID] = None
+    role: Optional[NewUserRole] = None
+    status: Optional[UserStatus] = None
+
+
+class UserDeleteOut(_Base):
+    id: UUID
+    status: str
+
+
+# ── Branches (Phase 1) ───────────────────────────────────────────
+BranchStatus = Literal["active", "inactive"]
+
+
+class BranchOut(_Base):
+    id: UUID
+    business_id: UUID
+    name: str
+    city: Optional[str] = None
+    status: str
+    created_at: datetime
+
+
+class BranchStatsOut(BranchOut):
+    stats: dict[str, Any]
+
+
+class BranchListOut(_Base):
+    items: list[BranchOut]
+    total: int
+
+
+class BranchCreateIn(_Base):
+    name: str = Field(min_length=1, max_length=255)
+    city: Optional[str] = None
+    status: BranchStatus = "active"

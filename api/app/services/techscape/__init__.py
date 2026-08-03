@@ -1,6 +1,7 @@
 from .ai_service          import AIService
 from .analytics_service    import AnalyticsService
 from .billing_service      import BillingService
+from .branch_service       import BranchService
 from .business_service     import BusinessService
 from .contact_service      import ContactService
 from .execution_service    import ExecutionService
@@ -13,6 +14,7 @@ __all__ = [
     "AIService",
     "AnalyticsService",
     "BillingService",
+    "BranchService",
     "BusinessService",
     "ContactService",
     "ExecutionService",
