@@ -12,14 +12,23 @@ env:
 
 jobs:
   # ──────────────────────────────────────────────
-  # Frontend — Build & Lint
+  # Frontends — Build & Lint
+  # customer-app/ (public marketing + booking) and agency-dashboard/
+  # (internal GoGaga dashboard) are both real Vite+React apps in this
+  # repo. There is no top-level frontend/ directory (fixed 2026-08-07 —
+  # this workflow referenced a directory that doesn't exist and would
+  # have failed the checkout step on every run).
   # ──────────────────────────────────────────────
   frontend:
-    name: Frontend Build
+    name: Frontend Build (${{ matrix.app }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [customer-app, agency-dashboard]
     defaults:
       run:
-        working-directory: frontend
+        working-directory: ${{ matrix.app }}
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +38,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: ${{ matrix.app }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -45,19 +54,26 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-dist
-          path: frontend/dist
+          name: ${{ matrix.app }}-dist
+          path: ${{ matrix.app }}/dist
           retention-days: 7
 
   # ──────────────────────────────────────────────
   # Backend — Lint & Test
+  # Real backend lives in api/ (FastAPI), not backend/ (fixed 2026-08-07 —
+  # same broken-path issue as the frontend job above). No pytest suite
+  # exists in this repo yet (verified 2026-08-07 sprint: zero test_*.py
+  # files anywhere) — this step honestly runs an import-level smoke test
+  # (does app.main import cleanly + expose routes) instead of pretending
+  # `pytest tests/` works. Swap this step out for real pytest once a
+  # tests/ directory exists.
   # ──────────────────────────────────────────────
   backend:
-    name: Backend Tests
+    name: Backend Smoke Test
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
+        working-directory: api
 
     steps:
       - uses: actions/checkout@v4
@@ -67,21 +83,50 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: api/requirements.txt
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run tests
-        run: pytest tests/ -v --tb=short
+      - name: Syntax check (py_compile)
+        run: find app -name "*.py" -exec python -m py_compile {} \;
+
+      - name: Import smoke test (app.main loads, routes register)
+        run: python -c "import app.main; assert len(app.main.app.routes) > 0; print('OK:', len(app.main.app.routes), 'routes')"
+        env:
+          # Fixture values only — this step never touches a real DB.
+          # Never populate these from real secrets; import-time settings
+          # validation just needs non-empty strings.
+          SUPABASE_URL: http://fixture.invalid
+          SUPABASE_ANON_KEY: fixture-anon-key-not-real
+          SUPABASE_SERVICE_ROLE_KEY: fixture-service-key-not-real
+          JWT_SECRET: fixture-jwt-secret-not-real
+          JWT_REFRESH_SECRET: fixture-jwt-refresh-not-real
+
+      - name: Run tests (once tests/ exists)
+        run: |
+          if [ -d tests ]; then
+            pytest tests/ -v --tb=short
+          else
+            echo "No tests/ directory yet — skipping pytest (see gogaga-verifier skill for the current manual verification approach)."
+          fi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
         continue-on-error: true
 
   # ──────────────────────────────────────────────
   # Backend Docker Build
+  # Dockerfile lives at repo root but is written to run `pip install -r
+  # requirements.txt` + `uvicorn app.main:app` against the api/ layout
+  # (requirements.txt + app/ at its build-context root) — so the build
+  # context must be api/, with the root Dockerfile passed explicitly via
+  # `file:` (fixed 2026-08-07 — context: ./backend pointed at a
+  # nonexistent directory and would also have looked for a Dockerfile
+  # inside it that doesn't exist there either).
   # ──────────────────────────────────────────────
   docker:
     name: Docker Build
@@ -98,7 +143,8 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: ./api
+          file: ./Dockerfile
           push: false
           tags: techscapeai-backend:latest
           cache-from: type=gha
