@@ -99,7 +99,7 @@ export default function OtpPage() {
     setError('')
     setResendMsg('New OTP sent!')
     setTimeout(() => setResendMsg(''), 3000)
-    try { await authApi.sendOtp(email) } catch {}
+    try { await authApi.sendOtp(email) } catch { /* resend is best-effort; UI already shows optimistic "New OTP sent!" */ }
     inputRefs.current[0]?.focus()
   }
 

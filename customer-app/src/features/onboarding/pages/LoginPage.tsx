@@ -57,8 +57,9 @@ export default function LoginPage() {
       localStorage.setItem('access_token', res.data.access_token)
       localStorage.setItem('refresh_token', res.data.refresh_token)
       navigate('/dashboard')
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Invalid email or password')
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      setError(detail || 'Invalid email or password')
     } finally {
       setLoading(false)
     }

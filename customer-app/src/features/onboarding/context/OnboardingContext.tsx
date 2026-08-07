@@ -99,6 +99,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook is colocated with its provider by design
 export function useOnboarding() {
   const ctx = useContext(OnboardingContext)
   if (!ctx) throw new Error('useOnboarding must be used within OnboardingProvider')

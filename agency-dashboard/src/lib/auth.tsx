@@ -15,15 +15,12 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !!localStorage.getItem('gogaga_access_token'))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const token = localStorage.getItem('gogaga_access_token')
-    if (!token) {
-      setLoading(false)
-      return
-    }
+    if (!token) return
     authApi
       .me()
       .then(setMe)
@@ -63,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The account was created, but the auto-login that follows failed
         // (e.g. a transient backend hiccup) — don't tell the user signup
         // itself failed, since retrying would just 409 on "already exists".
-        throw new Error('ACCOUNT_CREATED_LOGIN_FAILED')
+        throw new Error('ACCOUNT_CREATED_LOGIN_FAILED', { cause: err })
       }
       const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
       setError(typeof detail === 'string' ? detail : 'Registration failed')
@@ -84,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook is colocated with its provider by design
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')

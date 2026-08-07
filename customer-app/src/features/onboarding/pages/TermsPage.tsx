@@ -91,8 +91,9 @@ export default function TermsPage() {
       await authApi.register(payload)
       ctx.setTerms({ termsAccepted: terms, ageConfirmed: age, marketingOptIn: marketing })
       navigate('/onboarding/success')
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Something went wrong. Please try again.')
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+      setError(detail || 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
