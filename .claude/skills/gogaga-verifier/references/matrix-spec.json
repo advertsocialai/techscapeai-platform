@@ -10,6 +10,9 @@
     {"method":"GET","path":"/api/travel/v1/leads","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
     {"method":"POST","path":"/api/travel/v1/leads","body":{"raw_message":"matrix-probe lead","source":"website"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
     {"method":"GET","path":"/api/travel/v1/calls/live","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/ai-config","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"PUT","path":"/api/travel/v1/ai-config","body":{"languages":["en","hi"]},"expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"POST","path":"/api/travel/v1/ai-config/seed","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
     {"method":"POST","path":"/api/techscape/v1/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
   ],
   "_notes": [
@@ -17,6 +20,7 @@
     "calls.py (Phase 2 T7) mirrors the same pattern via lead_id join: agent-tier GET /calls/live returns only calls whose lead is assigned to them (still 200, filtered result). GET /calls/{id}/transcript and the WS /ws/calls/{call_id} live feed depend on a specific call's scope (in/out of the caller's assignment) — not expressible as a static per-role code here, verified via real fixtures in PHASE2_REPORT.md instead.",
     "PATCH/DELETE target-id tests, out-of-branch 404s, role-elevation 403s, and the token-invalidation chain were verified in T3-T5 (Phase 1) and T1/T7 (Phase 2) task chains with real per-role DB fixtures (not this static spec) — see PHASE1_REPORT.md / PHASE2_REPORT.md.",
     "logout is tested separately from the table above in practice (each call invalidates that role's own token) — run it last per role, not interleaved with the other rows.",
-    "webhooks_voice.py's POST /webhook/{provider}/voice and WS /webhook/{provider}/stream are NOT in this matrix — they use Plivo-signature auth, not JWT/roles, so a per-role expectation table doesn't apply. See PHASE2_REPORT.md for their verification (HMAC signature logic + simulated frame sequences)."
+    "webhooks_voice.py's POST /webhook/{provider}/voice and WS /webhook/{provider}/stream are NOT in this matrix — they use Plivo-signature auth, not JWT/roles, so a per-role expectation table doesn't apply. See PHASE2_REPORT.md for their verification (HMAC signature logic + simulated frame sequences).",
+    "ai-config (Phase 3 T2, added this sprint 2026-08-07): GET is require_role('viewer') so every authenticated role passes; PUT/seed are require_role('manager') so only admin(=manager)/super_admin pass. GET/seed auto-create a default config row on first access, so PUT is safe to re-run across sweeps (idempotent update, not insert). takeover.py's /calls/{id}/takeover/* and /calls/{id}/events are NOT in this matrix — same reason as the calls/{id} endpoints above: they need a real, specific call_id + active-call state, not expressible as a static per-role code here."
   ]
 }
