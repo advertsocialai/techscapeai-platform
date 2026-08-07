@@ -1,23 +1,27 @@
 """
-Voice provider webhooks (Phase 2) — Plivo answer + media stream.
+Voice provider webhooks — Plivo answer + media stream.
 
-IMPORTANT — auth model differs from every other route in this repo:
-these endpoints are called BY Plivo, not by a logged-in user, so they do
-NOT use get_current_user/require_role (there is no JWT to check). Auth
-here is Plivo's own request-signing scheme (X-Plivo-Signature-V2 +
-X-Plivo-Signature-V2-Nonce), verified in app/services/travel/voice.py —
-same "accept when secret unset" stub-mode convention as the existing
-Twilio/Wapi webhook verifiers in app/services/techscape/webhooks.py.
+Phase 2: signature verification, travel_calls lifecycle, batch STT.
+Phase 3 additions:
+  T3: suggestion_service.schedule() after each transcript (fire-and-forget)
+  T4: sentiment_service.schedule() after each transcript (fire-and-forget)
+  T5: post_call_service.schedule() on call stop (fire-and-forget)
+  T6: embeddings.embed_transcript() after transcript row created
+  T7: multi-tenant phone routing — resolves business_id from the "To"
+      field via business_phone_numbers table (falls back to PLIVO_BUSINESS_ID)
+  T9: per-participant recording URL stored in travel_calls (BLOCKED: no Plivo creds)
 
-T2 status: signature verification is real and testable today (HMAC
-logic needs no live Plivo account). The actual "answer a real call"
-path is BLOCKED pending real PLIVO_AUTH_ID/TOKEN/PHONE_NUMBER and a
-reachable PUBLIC_BASE_URL (ngrok) — see PHASE2_REPORT.md Blocked Items.
+IMPORTANT — auth model:
+  These endpoints are called BY Plivo, not by a logged-in user.
+  Auth = Plivo's HMAC-SHA256 signature scheme (X-Plivo-Signature-V2 +
+  X-Plivo-Signature-V2-Nonce), verified in services/travel/voice.py.
+  Stub-mode (PLIVO_AUTH_TOKEN unset) accepts all — testable without creds.
 """
 from __future__ import annotations
 import base64
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import (
     APIRouter, Header, HTTPException, Request, Response,
@@ -30,6 +34,8 @@ from app.services.travel import call_feed
 from app.services.travel.voice import (
     select_stt_engine, stream_xml, transcribe_utterance, verify_plivo_signature,
 )
+from app.services.travel import suggestion_service, sentiment_service, post_call_service
+from app.services.travel.embeddings import embed_transcript
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -38,12 +44,37 @@ _SUPPORTED_PROVIDERS = {"plivo"}
 
 
 def _webhook_url(request: Request) -> str:
-    """The exact public URL Plivo posted to — signature is computed against
-    this, not the internal request URL FastAPI sees behind a tunnel/proxy."""
     base = settings.PUBLIC_BASE_URL.rstrip("/") if settings.PUBLIC_BASE_URL else str(request.base_url).rstrip("/")
     path = request.url.path
     qs = f"?{request.url.query}" if request.url.query else ""
     return f"{base}{path}{qs}"
+
+
+# ── T7: multi-tenant phone routing ───────────────────────────────────
+def _resolve_business_id(db, to_number: Optional[str]) -> Optional[str]:
+    """Resolve business_id from the dialed number (T7).
+    Falls back to PLIVO_BUSINESS_ID if table empty or number not found."""
+    if to_number:
+        rows = (
+            db.table("business_phone_numbers").select("business_id")
+            .eq("phone_number", to_number).eq("is_active", True)
+            .limit(1).execute().data
+        )
+        if rows:
+            return rows[0]["business_id"]
+    # Fallback to legacy single-tenant config (deprecated once T7 fully wired)
+    if settings.PLIVO_BUSINESS_ID:
+        return settings.PLIVO_BUSINESS_ID
+    return None
+
+
+# ── T9: load ai_config for live calls ────────────────────────────────
+def _load_ai_config(business_id: str) -> dict:
+    try:
+        from app.routers.travel.ai_config import load_ai_config
+        return load_ai_config(business_id)
+    except Exception:
+        return {}
 
 
 @router.post("/{provider}/voice")
@@ -66,24 +97,25 @@ async def answer_call(
 
     call_uuid = body.get("CallUUID")
     from_number = body.get("From")
-    to_number = body.get("To")
+    to_number = body.get("To")  # T7: dialed number → resolve business
     logger.info("Plivo answer webhook: call=%s from=%s to=%s", call_uuid, from_number, to_number)
 
-    if not settings.PLIVO_BUSINESS_ID:
-        # Nothing to attribute the call to yet — see config.py's note on
-        # single-tenant PLIVO_BUSINESS_ID (Phase 3 needs real per-business
-        # phone routing). Answer gracefully instead of 500ing on a caller.
-        logger.warning("PLIVO_BUSINESS_ID not configured — cannot create a travel_calls row")
+    db = get_supabase_admin()
+
+    # T7: resolve business from "To" number
+    business_id = _resolve_business_id(db, to_number)
+
+    if not business_id:
+        logger.warning("No business_id resolved for to=%s — answering without DB row", to_number)
     else:
-        db = get_supabase_admin()
         lead_row = (
             db.table("travel_leads").select("id")
-            .eq("business_id", settings.PLIVO_BUSINESS_ID)
+            .eq("business_id", business_id)
             .eq("phone", from_number)
             .order("created_at", desc=True).limit(1).execute().data
         )
         lead_id = lead_row[0]["id"] if lead_row else db.table("travel_leads").insert({
-            "business_id": settings.PLIVO_BUSINESS_ID,
+            "business_id": business_id,
             "source": "phone",
             "raw_message": f"Inbound call from {from_number}",
             "phone": from_number,
@@ -91,27 +123,33 @@ async def answer_call(
         }).execute().data[0]["id"]
 
         db.table("travel_calls").insert({
-            "business_id":  settings.PLIVO_BUSINESS_ID,
+            "business_id":  business_id,
             "lead_id":      lead_id,
             "provider_sid": call_uuid,
             "status":       "active",
             "mode":         "ai",
             "started_at":   datetime.now(timezone.utc).isoformat(),
+            "takeover_state": "ai",
         }).execute()
 
-    stream_url = _webhook_url(request).replace("/voice", "/stream").replace("https://", "wss://").replace("http://", "ws://")
+        # T9: request per-participant recording (customer leg)
+        # BLOCKED: Plivo API call needs PLIVO_AUTH_ID/TOKEN (B-P3-06)
+        # When unblocked: POST /Account/{auth_id}/Recording/ with participant-specific params
+        if settings.PLIVO_AUTH_ID:
+            logger.info("T9: would request per-participant recording for call=%s — creds present", call_uuid)
+        else:
+            logger.debug("T9: per-participant recording skipped — PLIVO_AUTH_ID absent (B-P3-06)")
+
+    stream_url = (
+        _webhook_url(request)
+        .replace("/voice", "/stream")
+        .replace("https://", "wss://")
+        .replace("http://", "ws://")
+    )
     return Response(content=stream_xml(stream_url=stream_url), media_type="application/xml")
 
 
-# ── T3: media stream ─────────────────────────────────────────────
-# Plivo's Audio Streaming protocol sends one JSON frame per event over
-# the WS connection opened via the <Stream> element above:
-#   {"event": "start", "start": {"callId": "...", "streamId": "...", ...}}
-#   {"event": "media",  "media": {"payload": "<base64 audio>", "timestamp": ..., ...}}
-#   {"event": "stop",   "stop":  {"callId": "...", ...}}
-# No signature scheme applies to the WS upgrade itself in Plivo's spec —
-# the stream URL is only ever handed out by our own signature-verified
-# answer webhook above, which is the actual trust boundary.
+# ── T3: media stream ─────────────────────────────────────────────────
 def _parse_started_at(row: dict) -> datetime | None:
     raw = row.get("started_at")
     if not raw:
@@ -134,6 +172,7 @@ async def media_stream(websocket: WebSocket, provider: str):
     media_frame_count = 0
     audio_chunks: list[bytes] = []
     call_start_ms: int | None = None
+    ai_config: dict = {}
 
     try:
         while True:
@@ -150,6 +189,8 @@ async def media_stream(websocket: WebSocket, provider: str):
                 call_row = rows[0] if rows else None
                 logger.info("stream start: call=%s row_found=%s", call_id, bool(call_row))
                 if call_row:
+                    # Load ai_config for this business (T2)
+                    ai_config = _load_ai_config(call_row["business_id"])
                     await call_feed.publish(call_row["id"], {
                         "type": "call_status", "call_id": call_row["id"],
                         "status": "active", "mode": call_row.get("mode", "ai"),
@@ -166,10 +207,6 @@ async def media_stream(websocket: WebSocket, provider: str):
                     ts = (msg.get("media") or {}).get("timestamp")
                     if ts is not None and call_start_ms is None:
                         call_start_ms = int(ts)
-                # T4 note: this batches the whole utterance and transcribes
-                # once on "stop" (see below) — real per-utterance VAD-based
-                # segmentation is a live-audio-dependent refinement, not
-                # verifiable without a real call. See PHASE2_REPORT.md.
 
             elif event == "stop":
                 if call_row:
@@ -214,11 +251,26 @@ async def media_stream(websocket: WebSocket, provider: str):
                             "language": call_row.get("language", "en"),
                             "timestamp_ms": transcript_row["timestamp_ms"], "is_final": True,
                         })
+
+                        # T4: sentiment scoring (fire-and-forget, OFFLINE mode)
+                        sentiment_service.schedule(
+                            call_row["id"], transcript_row["id"],
+                            result["text"], "customer"
+                        )
+
+                        # T6: embed transcript text (fire-and-forget)
+                        embed_transcript(transcript_row["id"], result["text"])
+
+                        # T3: suggestion generation (fire-and-forget, OFFLINE mode)
+                        suggestion_service.schedule(
+                            call_row["id"], result["text"], "customer", ai_config
+                        )
+
+                    # T5: post-call intelligence pipeline (fire-and-forget)
+                    post_call_service.schedule(call_row["id"], call_row["business_id"])
                 break
 
     except WebSocketDisconnect:
-        # Caller/provider dropped without a clean "stop" frame — still
-        # close out the call row rather than leaving it 'active' forever.
         if call_row and call_row.get("status") == "active":
             started_at = _parse_started_at(call_row)
             now = datetime.now(timezone.utc)

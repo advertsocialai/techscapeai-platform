@@ -46,3 +46,19 @@ def embed_text(text: str) -> Optional[list[float]]:
     except Exception:
         logger.exception("embed_text failed")
         return None
+
+
+def embed_transcript(transcript_id: str, text: str) -> bool:
+    """Embed a transcript row and persist the vector (Phase 3 T6).
+    Returns True if embedding was written, False if skipped/failed."""
+    vec = embed_text(text)
+    if vec is None:
+        return False
+    try:
+        from app.database import get_supabase_admin
+        db = get_supabase_admin()
+        db.table("travel_transcripts").update({"embedding": vec}).eq("id", transcript_id).execute()
+        return True
+    except Exception:
+        logger.exception("embed_transcript: failed to persist for id=%s", transcript_id)
+        return False

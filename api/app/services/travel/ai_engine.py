@@ -42,15 +42,44 @@ logger = logging.getLogger(__name__)
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 
-SYSTEM_PROMPT = (
-    "You are Klara, a warm and professional AI travel agent taking a phone call. "
-    "Help the customer plan their trip. Keep every response short — this is a "
-    "spoken voice call, not a chat, so 1-2 short sentences, no lists, no markdown. "
-    "Whenever the customer mentions a destination, budget, number of travelers, or "
-    "trip duration, call extract_lead_details with whatever you learned. Before "
-    "quoting any price, call get_packages to check real availability — never "
-    "invent a price."
-)
+# Phase 3 T2: build system prompt from ai_config (DB-driven persona + question flow)
+def _build_system_prompt(ai_config: dict | None = None) -> str:
+    if not ai_config:
+        persona_name = "Klara"
+        greeting = "Hello! I'm Klara, your GoGaga travel assistant."
+        tone = "warm and professional"
+        question_list = ""
+        escalation_budget = 100000
+    else:
+        persona = ai_config.get("voice_persona") or {}
+        persona_name = persona.get("name", "Klara")
+        greeting = persona.get("greeting", "Hello! I'm Klara, your GoGaga travel assistant.")
+        tone = persona.get("tone", "warm_professional").replace("_", " ")
+        rules = ai_config.get("escalation_rules") or {}
+        escalation_budget = rules.get("budget_threshold", 100000)
+        flow = ai_config.get("question_flow") or []
+        if flow:
+            question_list = (
+                " Work through these questions in order: "
+                + " | ".join(f"{q.get('order', i+1)}. {q.get('question', '')}" for i, q in enumerate(flow))
+            )
+        else:
+            question_list = ""
+
+    return (
+        f"You are {persona_name}, a {tone} AI travel agent taking a phone call. "
+        f"Help the customer plan their trip. Keep every response short — this is a "
+        f"spoken voice call, not a chat, so 1-2 short sentences, no lists, no markdown.{question_list} "
+        f"Whenever the customer mentions a destination, budget, number of travelers, or "
+        f"trip duration, call extract_lead_details with whatever you learned. Before "
+        f"quoting any price, call get_packages to check real availability — never "
+        f"invent a price. If the customer's budget exceeds ₹{escalation_budget:,}, "
+        f"or they show strong buying intent, note 'ESCALATE: <reason>' in your reply "
+        f"so the system can trigger manager escalation."
+    )
+
+
+SYSTEM_PROMPT = _build_system_prompt()  # hardcoded default, used when ai_config not available
 
 TOOLS = [
     {
@@ -139,14 +168,17 @@ async def _stub_turn(transcript: str, *, lead_id: UUID, business_id: UUID) -> di
 
 
 async def run_turn(transcript: str, *, lead_id: UUID, business_id: UUID,
-                   history: Optional[list[dict]] = None) -> dict[str, Any]:
+                   history: Optional[list[dict]] = None,
+                   ai_config: Optional[dict] = None) -> dict[str, Any]:
     """One conversational turn: customer said `transcript`, returns
     {"reply": str, "tool_calls": [...], "model": str}. `history` is the
-    prior Anthropic-format message list (empty/None for a fresh call)."""
+    prior Anthropic-format message list (empty/None for a fresh call).
+    `ai_config` is the DB-driven persona/escalation config (Phase 3 T2)."""
     if not _configured():
         logger.warning("ANTHROPIC_API_KEY not set; using stub extraction heuristic")
         return await _stub_turn(transcript, lead_id=lead_id, business_id=business_id)
 
+    system = _build_system_prompt(ai_config)
     messages = list(history or []) + [{"role": "user", "content": transcript}]
     tool_calls: list[dict] = []
 
@@ -158,7 +190,7 @@ async def run_turn(transcript: str, *, lead_id: UUID, business_id: UUID,
                          "anthropic-version": ANTHROPIC_VERSION,
                          "content-type": "application/json"},
                 json={"model": settings.AI_MODEL, "max_tokens": 300,
-                      "system": SYSTEM_PROMPT, "tools": TOOLS, "messages": messages},
+                      "system": system, "tools": TOOLS, "messages": messages},
             )
             r.raise_for_status()
             data = r.json()
@@ -167,6 +199,11 @@ async def run_turn(transcript: str, *, lead_id: UUID, business_id: UUID,
             tool_use_blocks = [b for b in data["content"] if b.get("type") == "tool_use"]
             if not tool_use_blocks or data.get("stop_reason") != "tool_use":
                 text = "".join(b.get("text", "") for b in data["content"] if b.get("type") == "text").strip()
+
+                # Check for escalation signal in AI reply
+                if "ESCALATE:" in text and ai_config:
+                    logger.info("ai_engine: escalation signal detected in turn: %s", text[:100])
+
                 return {"reply": text, "tool_calls": tool_calls, "model": settings.AI_MODEL, "history": messages}
 
             tool_results = []

@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     SENDGRID_WEBHOOK_PUBLIC_KEY: str = ""
     WAPI_WEBHOOK_SECRET: str = ""
 
+    # ── Phase 3: Redis (T8 — call_feed pub/sub + JTI blacklist) ──
+    # Falls back gracefully to in-process implementations if not set.
+    REDIS_URL: str = ""  # e.g. redis://localhost:6379/0
+
     # Rate limiting
     RATE_LIMIT_CONTACT: int = 5  # requests per minute per IP
     RATE_LIMIT_NEWSLETTER: int = 3

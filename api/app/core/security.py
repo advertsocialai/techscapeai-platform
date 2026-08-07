@@ -93,21 +93,54 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
 
 
 # ── Token blacklist (logout) ───────────────────────────────────────
-# TODO: swap for Redis (SETEX <jti> <ttl> 1) once Redis is provisioned.
-# In-memory dict is per-process and does not survive restarts/multiple
-# workers — acceptable for dev, not for a multi-instance prod deploy.
+# Phase 3 T8: tries Redis first (SETEX <jti> <ttl> 1 — multi-worker,
+# survives restarts). Falls back to in-memory dict (single-worker,
+# same as Phase 2) when REDIS_URL is not set. See BLOCKERS.md B-P3-04.
 _blacklisted_jti: dict[str, float] = {}
+_redis_jti = None
+_redis_jti_failed = False
+
+
+def _get_redis_jti():
+    global _redis_jti, _redis_jti_failed
+    if _redis_jti_failed:
+        return None
+    try:
+        from app.core.config import settings
+        if not settings.REDIS_URL:
+            return None
+        if _redis_jti is not None:
+            return _redis_jti
+        import redis  # type: ignore
+        _redis_jti = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        return _redis_jti
+    except Exception:
+        _redis_jti_failed = True
+        return None
 
 
 def blacklist_jti(jti: str, ttl_seconds: float) -> None:
     if not jti or ttl_seconds <= 0:
         return
+    r = _get_redis_jti()
+    if r is not None:
+        try:
+            r.setex(f"jti:{jti}", int(ttl_seconds) + 1, "1")
+            return
+        except Exception:
+            pass  # fall through to in-memory
     _blacklisted_jti[jti] = time.monotonic() + ttl_seconds
 
 
 def is_jti_blacklisted(jti: Optional[str]) -> bool:
     if not jti:
         return False
+    r = _get_redis_jti()
+    if r is not None:
+        try:
+            return bool(r.exists(f"jti:{jti}"))
+        except Exception:
+            pass  # fall through to in-memory
     expires_at = _blacklisted_jti.get(jti)
     if expires_at is None:
         return False

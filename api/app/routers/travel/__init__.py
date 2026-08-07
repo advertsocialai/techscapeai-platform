@@ -21,6 +21,8 @@ from .on_ground   import router as on_ground_router
 from .playbooks   import router as playbooks_router
 from .webhooks_voice import router as webhooks_voice_router
 from .wiki        import router as wiki_router
+from .takeover    import router as takeover_router   # Phase 3 T1
+from .ai_config   import router as ai_config_router  # Phase 3 T2
 
 
 travel_router = APIRouter(prefix="/travel/v1")
@@ -40,6 +42,8 @@ travel_router.include_router(playbooks_router,  prefix="/playbooks",   tags=["Tr
 travel_router.include_router(demo_router,       prefix="/demo",        tags=["Travel · Demo"])
 travel_router.include_router(webhooks_voice_router, prefix="/webhook",  tags=["Travel · Voice Webhooks"])
 travel_router.include_router(calls_router,      prefix="/calls",       tags=["Travel · Calls"])
+travel_router.include_router(takeover_router,   prefix="/calls",       tags=["Travel · Human Takeover"])  # P3 T1
+travel_router.include_router(ai_config_router,  prefix="/ai-config",   tags=["Travel · AI Config"])        # P3 T2
 
 # NOT included in travel_router — mounted directly on `app` with no
 # prefix in main.py so the live-feed WS is exactly ws://<host>/ws/calls/{id},
