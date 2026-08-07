@@ -25,3 +25,6 @@ python-multipart==0.0.20
 
 # Wiki semantic search (Phase 2 T8) — local embedder, no API key needed
 fastembed==0.8.0
+
+# Tests (api/tests/ — added 2026-08-07, DB-free smoke suite; see conftest.py)
+pytest==9.1.1
