@@ -12,6 +12,7 @@ import GuestStoryPage from './features/guest-story/GuestStoryPage'
 import BookingsPage from './features/bookings/BookingsPage'
 import PlaybooksPage from './features/playbooks/PlaybooksPage'
 import LiveCallPage from './features/live-call/LiveCallPage'
+import LiveCallDetailPage from './features/live-call/LiveCallDetailPage'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth()
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/bookings" element={<BookingsPage />} />
         <Route path="/playbooks" element={<PlaybooksPage />} />
         <Route path="/live-call" element={<LiveCallPage />} />
+        <Route path="/live-call/:callId" element={<LiveCallDetailPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

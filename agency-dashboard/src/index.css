@@ -543,3 +543,125 @@ button {
 .state-block .btn-secondary:hover {
   border-color: var(--blue);
 }
+
+/* ── FE Phase 2: live call (S10/S11) + Mission Control (S0) ─────────────── */
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.muted-count { color: var(--text-dim); font-weight: 400; font-size: 12px; }
+.dot-sep { color: var(--text-xs); margin: 0 6px; }
+.stat-failed { color: var(--text-xs); }
+
+.badge.live { color: var(--green); background: var(--green-dim); border-color: var(--green-border); }
+.badge.mode-keyword { color: var(--amber); background: var(--amber-dim); }
+.badge.mode-claude { color: var(--blue); background: var(--blue-dim); }
+
+/* Connection status. Tone is carried by BOTH colour and text — colour alone
+   would leave the state invisible to anyone who cannot distinguish them. */
+.conn-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+}
+.conn-banner.ok { border-color: var(--green-border); color: var(--green); }
+.conn-banner.warn { border-color: rgba(245, 158, 11, 0.3); color: var(--amber); }
+.conn-banner.info { color: var(--text-dim); }
+.conn-detail { color: var(--text-dim); font-size: 11px; }
+
+.conn-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.conn-dot.ok { animation: conn-pulse 2s ease-in-out infinite; }
+@keyframes conn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .conn-dot.ok { animation: none; } }
+
+/* S10 list */
+.live-call-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.live-call-card { text-decoration: none; display: block; }
+.live-call-head { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.live-call-lang { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+.live-call-id { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.live-call-meta { font-size: 12px; color: var(--text-dim); }
+.live-call-sentiment { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+.live-call-open { display: block; margin-top: 12px; font-size: 12px; color: var(--blue); }
+
+.live-mini-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.live-mini-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; text-decoration: none; font-size: 13px;
+}
+.live-mini-item:hover { border-color: var(--border-strong); }
+
+.pipeline-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.pipeline-cell {
+  text-align: center; padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.pipeline-count { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+
+/* S11 detail */
+.crumb { color: var(--text-dim); text-decoration: none; }
+.crumb:hover { color: var(--text); }
+.crumb-sep { color: var(--text-xs); margin: 0 8px; }
+
+.live-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; }
+.live-detail-side { display: grid; gap: 16px; align-content: start; }
+@media (max-width: 1100px) {
+  .live-detail-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.transcript-scroll { max-height: 60vh; overflow-y: auto; display: grid; gap: 10px; }
+.transcript-line { padding: 10px 12px; border-radius: 10px; background: var(--surface2); border: 1px solid var(--border); }
+.transcript-line.speaker-customer { border-left: 2px solid var(--blue); }
+.transcript-line.speaker-ai { border-left: 2px solid var(--text-xs); }
+.transcript-line.speaker-agent { border-left: 2px solid var(--green); }
+.transcript-meta { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.transcript-speaker { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; }
+.transcript-lang { font-size: 11px; color: var(--text-xs); }
+.transcript-text { margin: 0; font-size: 13px; line-height: 1.5; }
+.transcript-translated { margin: 6px 0 0; font-size: 12px; color: var(--text-dim); font-style: italic; }
+
+.sentiment-rows { display: grid; gap: 12px; }
+.sentiment-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+.sentiment-value { color: var(--text-dim); }
+.sentiment-track { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
+.sentiment-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--green)); }
+.panel-footnote { margin: 4px 0 0; font-size: 11px; color: var(--text-xs); }
+
+.suggestion-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.suggestion-item { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); }
+.suggestion-text { margin: 0 0 6px; font-size: 12px; line-height: 1.45; }
+
+.unavailable-list { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-dim); display: grid; gap: 5px; }
+.unavailable-list code { font-size: 11px; color: var(--text); }
+
+/* Takeover */
+.takeover-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.takeover-state { font-size: 12px; font-weight: 600; }
+.takeover-note { margin: 0 0 10px; font-size: 11px; line-height: 1.5; color: var(--text-dim); }
+.takeover-note.warn { color: var(--amber); }
+.takeover-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.takeover-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.danger { background: var(--red-dim); border-color: rgba(239, 68, 68, 0.35); color: #fca5a5; }
+.takeover-confirm {
+  margin-top: 12px; padding: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 10px; background: var(--red-dim);
+}
+.takeover-confirm-actions { display: flex; gap: 8px; }
+.takeover-legal { margin: 10px 0 0; font-size: 10px; color: var(--text-xs); line-height: 1.5; }
