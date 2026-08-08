@@ -24,6 +24,8 @@ from .wiki        import router as wiki_router
 from .takeover    import router as takeover_router   # Phase 3 T1
 from .ai_config   import router as ai_config_router  # Phase 3 T2
 from .packages    import router as packages_router   # Phase 4 T1
+from .payments    import router as payments_router   # Phase 4 T2/T8
+from .whatsapp    import router as whatsapp_router   # Phase 4 T3
 
 
 travel_router = APIRouter(prefix="/travel/v1")
@@ -46,6 +48,11 @@ travel_router.include_router(calls_router,      prefix="/calls",       tags=["Tr
 travel_router.include_router(takeover_router,   prefix="/calls",       tags=["Travel · Human Takeover"])  # P3 T1
 travel_router.include_router(ai_config_router,  prefix="/ai-config",   tags=["Travel · AI Config"])        # P3 T2
 travel_router.include_router(packages_router,   prefix="/packages",    tags=["Travel · Packages"])         # P4 T1
+# payments defines its own full paths (/payment-links, /webhook/razorpay),
+# so it mounts with no prefix. The razorpay webhook is gateway-signed, not
+# JWT-authed — same convention as the Plivo voice webhook above.
+travel_router.include_router(payments_router,                          tags=["Travel · Payments"])         # P4 T2/T8
+travel_router.include_router(whatsapp_router,   prefix="/whatsapp",    tags=["Travel · WhatsApp"])         # P4 T3
 
 # NOT included in travel_router — mounted directly on `app` with no
 # prefix in main.py so the live-feed WS is exactly ws://<host>/ws/calls/{id},
