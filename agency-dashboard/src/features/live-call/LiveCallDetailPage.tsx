@@ -21,6 +21,7 @@ import { useCallFeed } from '../../hooks/useCallFeed'
 import { ErrorState, SkeletonRows } from '../../components/DataState'
 import type { TranscriptMessage } from '../../types/ws'
 import TakeoverControls from './TakeoverControls'
+import CallEventsPanel from './CallEventsPanel'
 import {
   ConnectionBanner,
   SentimentPanel,
@@ -132,6 +133,7 @@ export default function LiveCallDetailPage() {
             />
             <SentimentPanel sentiments={feed.sentiments} />
             <SuggestionsPanel suggestions={feed.suggestions} />
+            <CallEventsPanel callId={callId} />
             <UnavailablePanels />
           </aside>
         </div>

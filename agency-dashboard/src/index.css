@@ -806,3 +806,21 @@ button {
 .form-stack { display: grid; gap: 10px; }
 .stack-field { display: grid; gap: 4px; font-size: 11px; color: var(--text-dim); }
 .stack-field .input { width: 100%; }
+
+/* ── Gap-closing pass: events, ladder, schedules ────────────────────────── */
+
+.event-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.event-item {
+  padding: 7px 10px; border-radius: 7px;
+  background: var(--surface2); border-left: 2px solid var(--border-strong);
+}
+.event-item.evt-takeover { border-left-color: var(--amber); }
+.event-item.evt-done { border-left-color: var(--green); }
+.event-item.evt-info { border-left-color: var(--blue); }
+.event-head { display: flex; justify-content: space-between; gap: 10px; }
+.event-label { font-size: 12px; }
+.event-time { font-size: 11px; color: var(--text-xs); white-space: nowrap; }
+
+.rule-item.rule-off { opacity: 0.5; }
+.row-actions { display: flex; gap: 6px; }
+.rate-card { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }

@@ -29,9 +29,18 @@ const PERIODS = ['today', '7d', '30d', '90d', 'mtd'] as const
 export default function CostPage() {
   const [period, setPeriod] = useState<string>('30d')
 
+  const [showRates, setShowRates] = useState(false)
+
   const costQ = useQuery({
     queryKey: ['cost', period],
     queryFn: () => usageApi.cost({ period }),
+  })
+  // Only fetched when opened — the rate card is reference data, not something
+  // every visit needs.
+  const rateCardQ = useQuery({
+    queryKey: ['rate-card'],
+    queryFn: usageApi.rateCard,
+    enabled: showRates,
   })
   const rollupQ = useQuery({
     queryKey: ['revenue-rollup', period],
@@ -144,6 +153,51 @@ export default function CostPage() {
                 </p>
               )}
               <p className="panel-footnote">{cost.rate_card.provenance}</p>
+
+              <button
+                type="button"
+                className="btn-secondary sm"
+                onClick={() => setShowRates((v) => !v)}
+              >
+                {showRates ? 'Hide rate card' : 'Show rate card'}
+              </button>
+
+              {showRates && (
+                <div className="rate-card">
+                  {rateCardQ.isLoading ? (
+                    <SkeletonRows rows={3} height={30} />
+                  ) : rateCardQ.isError ? (
+                    <ErrorState error={rateCardQ.error} onRetry={() => rateCardQ.refetch()} />
+                  ) : rateCardQ.data ? (
+                    <>
+                      <p className="panel-footnote">
+                        Version <code>{rateCardQ.data.rate_card_version}</code> ·{' '}
+                        {rateCardQ.data.formula}
+                      </p>
+                      <div className="field-list">
+                        {Object.entries(rateCardQ.data.rates_usd).map(([k, v]) => (
+                          <div key={k} className="field-row">
+                            <span className="field-label">{k}</span>
+                            <span className="field-value">
+                              {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* The targets these estimates are measured against. */}
+                      <div className="t3" style={{ margin: '12px 0 6px' }}>Targets (USD/min)</div>
+                      <div className="field-list">
+                        {Object.entries(rateCardQ.data.targets_usd_per_min).map(([lang, t]) => (
+                          <div key={lang} className="field-row">
+                            <span className="field-label">{lang}</span>
+                            <span className="field-value">{t.low} – {t.high}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
           </>
         ) : null}

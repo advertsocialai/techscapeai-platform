@@ -19,6 +19,7 @@ import WhatsAppPage from './features/comms/WhatsAppPage'
 import FollowUpsPage from './features/comms/FollowUpsPage'
 import ReportsPage from './features/reports/ReportsPage'
 import CostPage from './features/reports/CostPage'
+import ReportSchedulesPage from './features/reports/ReportSchedulesPage'
 import TeamPage from './features/team/TeamPage'
 import ActivityLogPage from './features/team/ActivityLogPage'
 import AiConfigPage from './features/playbooks/AiConfigPage'
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="/follow-ups" element={<FollowUpsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/cost" element={<CostPage />} />
+        <Route path="/report-schedules" element={<ReportSchedulesPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/activity" element={<ActivityLogPage />} />
         <Route path="/playbooks" element={<PlaybooksPage />} />

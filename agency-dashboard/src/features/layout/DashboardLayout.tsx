@@ -45,6 +45,7 @@ const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/reports', label: 'Reports' },
       { to: '/cost', label: 'Cost & Revenue' },
+      { to: '/report-schedules', label: 'Schedules', minimum: 'manager' },
     ],
   },
   {

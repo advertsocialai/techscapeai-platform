@@ -17,6 +17,7 @@ import { isReadOnly } from '../../lib/rbac'
 import { useAuth } from '../../lib/auth'
 import { ErrorState, SkeletonRows } from '../../components/DataState'
 import type { FollowUpStatus } from '../../types/travel'
+import LadderEditor from './LadderEditor'
 
 const STATUSES: FollowUpStatus[] = ['due', 'overdue', 'in_progress', 'done']
 
@@ -151,22 +152,7 @@ export default function FollowUpsPage() {
           ) : rulesQ.isError ? (
             <ErrorState error={rulesQ.error} onRetry={() => rulesQ.refetch()} />
           ) : (
-            <>
-              <p className="state-reason" style={{ marginBottom: 10 }}>
-                Editing a rule reschedules only <strong>future</strong> follow-ups. Ones already
-                due keep their original timing, so a rule change cannot silently move work that
-                someone is already acting on.
-              </p>
-              <ul className="rule-list">
-                {(rulesQ.data?.ladder ?? []).map((r) => (
-                  <li key={r.id} className="rule-item">
-                    <span>Day {r.ladder_day}</span>
-                    <span className="muted-count">{r.type} · {r.channel}</span>
-                    <span className="muted-count">{r.is_active ? 'active' : 'inactive'}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
+            <LadderEditor rules={rulesQ.data?.ladder ?? []} readOnly={readOnly} />
           )}
         </div>
       </div>
