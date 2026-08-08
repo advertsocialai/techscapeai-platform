@@ -19,10 +19,14 @@ available when ANTHROPIC_API_KEY is set (richer per-turn scores).
 from __future__ import annotations
 import asyncio
 import logging
+import re
+from functools import lru_cache
 from uuid import UUID
 
 from app.database import get_supabase_admin
 from app.services.travel import call_feed
+
+from . import background
 
 logger = logging.getLogger(__name__)
 
@@ -31,18 +35,45 @@ _EXCITEMENT_UP = ["excited", "amazing", "love", "great", "perfect", "wonderful",
 _EXCITEMENT_DOWN = ["not sure", "maybe", "hmm", "okay", "fine", "whatever", "not interested"]
 _INTENT_UP = ["book", "booking", "confirm", "want", "ready", "send me", "proceed", "go ahead", "how do i pay", "payment"]
 _INTENT_DOWN = ["just looking", "not now", "later", "not ready", "not sure yet", "just checking"]
-_PRICE_SENSITIVITY_UP = ["expensive", "too much", "budget", "cheap", "afford", "cost", "price", "how much", "discount", "offer", "₹", "inr", "lakh", "thousand", "k "]
+_PRICE_SENSITIVITY_UP = ["expensive", "too much", "budget", "cheap", "afford", "cost", "price", "how much", "discount", "offer", "₹", "inr", "lakh", "thousand", r"\d+\s*k\b"]
 _PRICE_SENSITIVITY_DOWN = ["money is not", "budget is flexible", "not worried about cost", "price is fine"]
+
+
+@lru_cache(maxsize=512)
+def _pattern_for(term: str) -> re.Pattern:
+    """Compile a keyword into a word-boundary-anchored pattern.
+
+    Plain substring matching produced real false positives (DEBT-09): the
+    price-sensitivity term `"k "` — intended to catch the "50k" shorthand —
+    also matched "boo[k ]this" and "thin[k ]about", so a pure buying-intent
+    line like "we want to book this, send me the payment link" scored as
+    price-sensitive. `"may"` likewise fired on "maybe".
+
+    Terms already written as regex (they contain a backslash) are used as-is;
+    everything else is escaped and wrapped in \\b...\\b. `\\b` is not meaningful
+    next to a non-word character, so symbol terms like "₹" fall back to a plain
+    substring match rather than silently never matching.
+    """
+    if "\\" in term:
+        return re.compile(term)
+    escaped = re.escape(term)
+    left = r"\b" if term[:1].isalnum() else ""
+    right = r"\b" if term[-1:].isalnum() else ""
+    return re.compile(f"{left}{escaped}{right}")
+
+
+def _matches(term: str, lower_text: str) -> bool:
+    return _pattern_for(term).search(lower_text) is not None
 
 
 def _score_dimension(text: str, up_words: list[str], down_words: list[str], base: float = 0.5) -> float:
     lower = text.lower()
     score = base
     for w in up_words:
-        if w in lower:
+        if _matches(w, lower):
             score = min(1.0, score + 0.15)
     for w in down_words:
-        if w in lower:
+        if _matches(w, lower):
             score = max(0.0, score - 0.15)
     return round(score, 3)
 
@@ -104,11 +135,7 @@ async def score_and_broadcast(
 
 def schedule(call_id: str, transcript_id: str, transcript_text: str, speaker: str) -> None:
     """Fire-and-forget sentiment scoring — never blocks the voice path."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(
-                score_and_broadcast(call_id, transcript_id, transcript_text, speaker)
-            )
-    except Exception:
-        logger.exception("Failed to schedule sentiment for call=%s", call_id)
+    background.spawn(
+        score_and_broadcast(call_id, transcript_id, transcript_text, speaker),
+        label=f"sentiment call={call_id}",
+    )

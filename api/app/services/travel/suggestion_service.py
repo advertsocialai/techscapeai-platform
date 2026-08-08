@@ -24,6 +24,9 @@ from app.core.config import settings
 from app.database import get_supabase_admin
 from app.services.travel import call_feed
 
+from . import background
+from .sentiment_service import _matches
+
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
@@ -32,7 +35,7 @@ ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 _RULES = [
     (["kids", "children", "family", "child"], "Customer mentioned family — consider suggesting a family-friendly package"),
     (["budget", "cheap", "affordable", "cost", "price", "expensive"], "Price sensitivity detected — offer the most affordable package variant"),
-    (["refund", "cancel", "cancellation", "cancel"], "Customer mentioned cancellation — be ready to explain the refund policy"),
+    (["refund", "cancel", "cancellation", "cancelling", "canceled", "cancelled"], "Customer mentioned cancellation — be ready to explain the refund policy"),
     (["maldives", "bali", "europe", "international"], "International destination interest — confirm passport/visa requirements"),
     (["honeymoon", "anniversary", "romantic", "couple"], "Romantic trip context — suggest honeymoon or couple packages"),
     (["months", "february", "march", "april", "may", "june", "july", "august",
@@ -41,9 +44,16 @@ _RULES = [
 
 
 def _keyword_suggestion(transcript_text: str, context_texts: list[str]) -> str | None:
+    """Match rule keywords on word boundaries, not as bare substrings.
+
+    Substring matching made the month rule fire on "maybe" (via "may") and on
+    "marching", so an utterance with no timing content at all produced
+    "Timing mentioned — confirm availability". Reusing sentiment_service's
+    matcher keeps the two keyword scorers consistent (DEBT-09).
+    """
     combined = " ".join([transcript_text] + context_texts[-4:]).lower()
     for keywords, suggestion in _RULES:
-        if any(kw in combined for kw in keywords):
+        if any(_matches(kw, combined) for kw in keywords):
             return suggestion
     return None
 
@@ -133,13 +143,7 @@ def schedule(
 ) -> None:
     """Schedule suggestion generation as a fire-and-forget background task.
     Called from the voice WS handler — never blocks the voice critical path."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(
-                generate_and_broadcast(call_id, transcript_text, speaker, ai_config)
-            )
-        else:
-            logger.warning("No running event loop — suggestion skipped for call=%s", call_id)
-    except Exception:
-        logger.exception("Failed to schedule suggestion for call=%s", call_id)
+    background.spawn(
+        generate_and_broadcast(call_id, transcript_text, speaker, ai_config),
+        label=f"suggestion call={call_id}",
+    )

@@ -26,6 +26,8 @@ import httpx
 from app.core.config import settings
 from app.database import get_supabase_admin
 
+from . import background
+
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
@@ -190,9 +192,7 @@ async def run_pipeline(call_id: str, business_id: str) -> None:
 
 def schedule(call_id: str, business_id: str) -> None:
     """Fire-and-forget post-call pipeline — called from the 'stop' event handler."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(run_pipeline(call_id, business_id))
-    except Exception:
-        logger.exception("Failed to schedule post_call pipeline for call=%s", call_id)
+    background.spawn(
+        run_pipeline(call_id, business_id),
+        label=f"post_call call={call_id}",
+    )
