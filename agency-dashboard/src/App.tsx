@@ -13,6 +13,10 @@ import BookingsPage from './features/bookings/BookingsPage'
 import PlaybooksPage from './features/playbooks/PlaybooksPage'
 import LiveCallPage from './features/live-call/LiveCallPage'
 import LiveCallDetailPage from './features/live-call/LiveCallDetailPage'
+import PackagesPage from './features/revenue/PackagesPage'
+import PaymentLinksPage from './features/revenue/PaymentLinksPage'
+import WhatsAppPage from './features/comms/WhatsAppPage'
+import FollowUpsPage from './features/comms/FollowUpsPage'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth()
@@ -41,6 +45,10 @@ export default function App() {
         <Route path="/journey-board" element={<JourneyBoardPage />} />
         <Route path="/journey-board/:leadId" element={<GuestStoryPage />} />
         <Route path="/bookings" element={<BookingsPage />} />
+        <Route path="/packages" element={<PackagesPage />} />
+        <Route path="/payment-links" element={<PaymentLinksPage />} />
+        <Route path="/whatsapp" element={<WhatsAppPage />} />
+        <Route path="/follow-ups" element={<FollowUpsPage />} />
         <Route path="/playbooks" element={<PlaybooksPage />} />
         <Route path="/live-call" element={<LiveCallPage />} />
         <Route path="/live-call/:callId" element={<LiveCallDetailPage />} />

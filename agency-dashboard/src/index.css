@@ -720,3 +720,50 @@ button {
 }
 .activity-action { font-family: ui-monospace, monospace; font-size: 11px; }
 .activity-time { color: var(--text-xs); font-size: 11px; white-space: nowrap; }
+
+/* ── FE Phase 4: revenue + comms ────────────────────────────────────────── */
+
+/* Mode banner. Stub vs live is the highest-value fact on a money or messaging
+   screen, so it is styled to be unmissable rather than tucked into a corner. */
+.mode-banner {
+  display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 8px; margin-bottom: 14px;
+  font-size: 12px; line-height: 1.5;
+}
+.mode-banner strong { letter-spacing: 0.06em; font-size: 11px; }
+.mode-banner.stub { background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.35); color: var(--amber); }
+.mode-banner.stub span { color: var(--text-dim); }
+.mode-banner.live { background: var(--red-dim); border: 1px solid rgba(239,68,68,0.35); color: #fca5a5; }
+.mode-banner.live span { color: var(--text-dim); }
+
+.form-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.input.grow { flex: 1; min-width: 200px; }
+.input.full { width: 100%; margin-top: 8px; resize: vertical; }
+.checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+
+.btn-secondary.sm { padding: 4px 9px; font-size: 11px; }
+.stub-url { font-size: 11px; color: var(--text-xs); }
+.row-archived { opacity: 0.5; }
+.row-overdue td:first-child { border-left: 2px solid var(--red); }
+
+.badge.pay-paid { color: var(--green); background: var(--green-dim); }
+.badge.pay-created, .badge.pay-sent { color: var(--blue); background: var(--blue-dim); }
+.badge.pay-viewed { color: var(--amber); background: var(--amber-dim); }
+.badge.pay-expired { color: var(--text-xs); }
+
+.badge.wa-sent { color: var(--green); background: var(--green-dim); }
+.badge.wa-stubbed { color: var(--amber); background: var(--amber-dim); }
+.badge.wa-failed { color: var(--red); background: var(--red-dim); }
+.badge.wa-queued { color: var(--text-dim); }
+
+.badge.fu-overdue { color: var(--red); background: var(--red-dim); }
+.badge.fu-due { color: var(--amber); background: var(--amber-dim); }
+.badge.fu-done { color: var(--green); background: var(--green-dim); }
+.badge.fu-in_progress { color: var(--blue); background: var(--blue-dim); }
+
+.rule-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rule-item {
+  display: flex; justify-content: space-between; gap: 12px;
+  font-size: 12px; padding: 7px 10px;
+  background: var(--surface2); border-radius: 7px;
+}

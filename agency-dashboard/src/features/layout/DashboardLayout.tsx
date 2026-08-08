@@ -16,9 +16,23 @@ const NAV_SECTIONS: { label: string; items: { to: string; label: string }[] }[] 
     ],
   },
   {
-    label: 'Operations',
+    label: 'Revenue',
     items: [
       { to: '/bookings', label: 'Bookings' },
+      { to: '/packages', label: 'Packages' },
+      { to: '/payment-links', label: 'Payment Links' },
+    ],
+  },
+  {
+    label: 'Comms',
+    items: [
+      { to: '/whatsapp', label: 'WhatsApp' },
+      { to: '/follow-ups', label: 'Follow-ups' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
       { to: '/playbooks', label: 'AI Playbook' },
     ],
   },
