@@ -767,3 +767,17 @@ button {
   font-size: 12px; padding: 7px 10px;
   background: var(--surface2); border-radius: 7px;
 }
+
+/* ── FE Phase 5: reports, cost, team ────────────────────────────────────── */
+
+.btn.ghost.active { border-color: var(--blue); color: var(--blue); }
+
+.warning-list { display: grid; gap: 6px; margin-bottom: 14px; }
+.warning-item {
+  margin: 0; padding: 8px 12px; font-size: 12px; line-height: 1.5;
+  background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.28);
+  border-radius: 8px; color: var(--amber);
+}
+
+.rollup-total { display: flex; align-items: center; gap: 12px; }
+.rollup-amount { font-size: 28px; font-weight: 800; }

@@ -31,9 +31,18 @@ const NAV_SECTIONS: { label: string; items: { to: string; label: string }[] }[] 
     ],
   },
   {
+    label: 'Insight',
+    items: [
+      { to: '/reports', label: 'Reports' },
+      { to: '/cost', label: 'Cost & Revenue' },
+    ],
+  },
+  {
     label: 'Operations',
     items: [
       { to: '/playbooks', label: 'AI Playbook' },
+      { to: '/team', label: 'Team' },
+      { to: '/activity', label: 'Activity Log' },
     ],
   },
 ]

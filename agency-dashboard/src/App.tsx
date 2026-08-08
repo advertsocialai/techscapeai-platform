@@ -17,6 +17,10 @@ import PackagesPage from './features/revenue/PackagesPage'
 import PaymentLinksPage from './features/revenue/PaymentLinksPage'
 import WhatsAppPage from './features/comms/WhatsAppPage'
 import FollowUpsPage from './features/comms/FollowUpsPage'
+import ReportsPage from './features/reports/ReportsPage'
+import CostPage from './features/reports/CostPage'
+import TeamPage from './features/team/TeamPage'
+import ActivityLogPage from './features/team/ActivityLogPage'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth()
@@ -49,6 +53,10 @@ export default function App() {
         <Route path="/payment-links" element={<PaymentLinksPage />} />
         <Route path="/whatsapp" element={<WhatsAppPage />} />
         <Route path="/follow-ups" element={<FollowUpsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/cost" element={<CostPage />} />
+        <Route path="/team" element={<TeamPage />} />
+        <Route path="/activity" element={<ActivityLogPage />} />
         <Route path="/playbooks" element={<PlaybooksPage />} />
         <Route path="/live-call" element={<LiveCallPage />} />
         <Route path="/live-call/:callId" element={<LiveCallDetailPage />} />
