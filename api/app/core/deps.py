@@ -29,7 +29,7 @@ from __future__ import annotations
 from typing import Optional
 
 import jwt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, WebSocket, WebSocketException, status
 
 from app.core.security import decode_access_token, is_jti_blacklisted
 from app.services.techscape import BusinessService
@@ -46,7 +46,10 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> dic
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
 
-    token = authorization.split(" ", 1)[1].strip()
+    return _user_from_token(authorization.split(" ", 1)[1].strip())
+
+
+def _user_from_token(token: str) -> dict:
     try:
         claims = decode_access_token(token)
     except jwt.ExpiredSignatureError:
@@ -70,6 +73,75 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> dic
     if user.get("status") != "active":
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"User status is {user.get('status')}")
     return user
+
+
+# ── WebSocket authentication ──────────────────────────────────────────────
+# WHY THIS EXISTS (do not "simplify" it back to get_current_user)
+# ---------------------------------------------------------------
+# The live call feed originally depended on get_current_user, which reads the
+# Authorization header. That works for the Python probe in
+# gogaga-verifier/scripts/ws_probe.py (`websockets.connect(..., additional_headers=)`)
+# but it CANNOT work from a browser: the WebSocket constructor exposes no way to
+# set request headers, and there is no fetch-style escape hatch. The dashboard's
+# live call screen therefore could never have connected — every handshake was
+# rejected before .accept(), surfacing in the browser as a bare close code 1006
+# that looks like a network blip and retries forever.
+#
+# The browser-safe channel is the subprotocol header, which IS settable:
+#     new WebSocket(url, ['bearer', accessToken])
+# It is preferred over the more common `?token=` query string because query
+# strings are written to access logs, proxy logs and browser history, and an
+# access token in a log file outlives its own expiry as a stolen credential.
+# A query param is still accepted as a last resort (some corporate proxies strip
+# unknown subprotocols) but is deliberately last in the order below.
+#
+# RFC 6455: if the client offers subprotocols the server MUST echo exactly one
+# back on accept, or the browser closes the connection immediately. The chosen
+# value is stashed on websocket.state for the route to pass to .accept().
+_WS_SUBPROTOCOL = "bearer"
+
+
+def _ws_token(websocket: WebSocket, authorization: Optional[str]) -> Optional[str]:
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization.split(" ", 1)[1].strip()
+
+    # Sec-WebSocket-Protocol arrives as a comma-separated offer list:
+    #   "bearer, eyJhbGciOi..."
+    offered = websocket.headers.get("sec-websocket-protocol")
+    if offered:
+        parts = [p.strip() for p in offered.split(",") if p.strip()]
+        if len(parts) >= 2 and parts[0] == _WS_SUBPROTOCOL:
+            websocket.state.ws_subprotocol = _WS_SUBPROTOCOL
+            return parts[1]
+
+    return websocket.query_params.get("token") or None
+
+
+async def get_current_user_ws(
+    websocket: WebSocket,
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    """get_current_user for WebSocket routes, accepting browser-settable auth.
+
+    Raises WebSocketException rather than HTTPException: a WebSocket scope has
+    no way to send an HTTP response, so raising HTTPException here would make
+    Starlette attempt one and fail confusingly instead of closing cleanly.
+    1008 is the RFC 6455 "policy violation" code.
+    """
+    token = _ws_token(websocket, authorization)
+    if not token:
+        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
+    try:
+        return _user_from_token(token)
+    except HTTPException as exc:
+        raise WebSocketException(
+            code=status.WS_1008_POLICY_VIOLATION, reason=str(exc.detail)
+        ) from exc
+
+
+def ws_accept_subprotocol(websocket: WebSocket) -> Optional[str]:
+    """The subprotocol to echo on .accept(), or None when the client offered none."""
+    return getattr(websocket.state, "ws_subprotocol", None)
 
 
 def require_role(*roles: str):

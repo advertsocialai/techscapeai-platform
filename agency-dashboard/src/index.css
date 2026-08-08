@@ -462,3 +462,84 @@ button {
   text-align: center;
   color: var(--text-dim);
 }
+
+/* ── Data-state primitives (components/DataState.tsx) ───────────────────── */
+/* Skeletons are shaped like the content they replace, so the wait itself tells
+   the user what is arriving. A spinner cannot do that. */
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--surface2) 25%,
+    rgba(255, 255, 255, 0.06) 37%,
+    var(--surface2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sheen 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-sheen {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* Respect a user's reduced-motion preference: the sheen is decorative, and the
+   block still communicates "loading" perfectly well when it holds still. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+.skeleton-rows,
+.skeleton-cards {
+  display: grid;
+  gap: 10px;
+}
+
+.skeleton-cards {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+/* Empty and error share a shape but must never be mistaken for each other, or
+   for the skeleton above — hence the border and the explicit reason line. */
+.state-block {
+  padding: 32px 24px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.state-error {
+  border-style: solid;
+  border-color: rgba(239, 68, 68, 0.28);
+  background: var(--red-dim);
+}
+
+.state-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.state-reason {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.state-block .btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.state-block .btn-secondary:hover {
+  border-color: var(--blue);
+}

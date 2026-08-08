@@ -18,7 +18,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 
-from app.core.deps import get_current_user, require_role
+from app.core.deps import (
+    get_current_user,
+    get_current_user_ws,
+    require_role,
+    ws_accept_subprotocol,
+)
 from app.schemas.travel import CallOut, TranscriptOut
 from app.services.travel import call_feed
 from app.services.travel.call_service import CallService
@@ -51,21 +56,26 @@ def get_call_transcript(call_id: UUID, user: dict = Depends(_read)):
 
 
 # ── Live feed WS ──────────────────────────────────────────────────
-# Auth: JWT via the Authorization header on the WS handshake (a FastAPI
-# Depends() with a Header() param works the same way on WebSocket routes
-# as it does on HTTP ones — resolved before .accept(), so an invalid/
-# missing token closes the connection instead of ever accepting it).
-# Matches gogaga-verifier/scripts/ws_probe.py's `additional_headers`
-# convention exactly.
+# Auth: get_current_user_ws, NOT get_current_user. The header-only variant
+# authenticated gogaga-verifier/scripts/ws_probe.py fine but locked browsers
+# out entirely — the WebSocket constructor cannot set request headers, so the
+# dashboard's live call screen could never connect. get_current_user_ws still
+# accepts the Authorization header (the probe keeps working unchanged) and adds
+# the browser-settable subprotocol channel. See app/core/deps.py for why the
+# subprotocol is preferred over ?token=.
 @ws_router.websocket("/ws/calls/{call_id}")
-async def call_feed_ws(websocket: WebSocket, call_id: UUID, user: dict = Depends(get_current_user)):
+async def call_feed_ws(
+    websocket: WebSocket, call_id: UUID, user: dict = Depends(get_current_user_ws)
+):
     scope = None if _is_manager_plus(user) else UUID(user["id"])
     call = CallService().get_call_scoped(call_id, UUID(user["business_id"]), assigned_agent=scope)
     if not call:
         await websocket.close(code=4404)  # not found / out of scope — never leak which
         return
 
-    await websocket.accept()
+    # RFC 6455 requires echoing exactly one of the client's offered subprotocols;
+    # omitting it makes the browser drop a connection the server thinks it accepted.
+    await websocket.accept(subprotocol=ws_accept_subprotocol(websocket))
     key = str(call_id)
     # subscribe_call picks the backend: it relays from the Redis channel when
     # REDIS_URL is set, and otherwise registers on the in-process listener set

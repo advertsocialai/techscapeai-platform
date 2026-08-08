@@ -100,7 +100,7 @@ for r in sorted(m.app.routes, key=lambda x: getattr(x,'path','')):
 | Source | Says |
 |---|---|
 | `api-conventions.md` | `transcript`, `whisper`, `call_status`, `sentiment` |
-| **Backend code (authoritative)** | `transcript`, `call_status`, `sentiment`, **`suggestion`**, `takeover_state`, `summary` |
+| **Backend code (authoritative)** | `transcript`, `call_status`, `sentiment`, **`suggestion`**, `takeover_state` — exactly five |
 | FE loop prompts | adds `speaking`, `intent`, `event`, `extraction` |
 
 Two things follow, and both have bitten already:
@@ -113,9 +113,38 @@ Two things follow, and both have bitten already:
    they were live; if a spec asks for them, that is a backend gap to log, not a
    frontend feature to fake.
 
+3. **`summary` is NOT emitted either** (an earlier version of this file wrongly
+   listed it). The only `"type": "summary"` in the codebase is a follow-up-ladder
+   step in `followup_service.py`, unrelated to the call feed. There are exactly
+   five publisher call sites; `call_feed.publish` is the thing to grep.
+
 Also: `seq` is documented as monotonic-per-call for gap detection, but the
-backend **hardcodes `seq: 1`**. Do not build gap detection on it — it would
-silently mislead.
+backend **hardcodes `seq: 1`**, on `transcript` only. Do not build gap detection
+on it — it would silently mislead.
+
+### Auth on the handshake — the subprotocol, not the header
+
+The route depends on **`get_current_user_ws`**, not `get_current_user`. This
+matters because a browser's `WebSocket` constructor cannot set request headers,
+so the original header-only dependency locked the dashboard out completely —
+every handshake was rejected before `.accept()` and surfaced as a bare close
+code `1006`, which reads as a network blip and retries forever.
+
+Send the token as a subprotocol offer:
+
+```ts
+new WebSocket(url, ['bearer', accessToken])
+```
+
+The server echoes `bearer` back on accept. **RFC 6455: a browser silently drops
+any connection whose offered subprotocol the server did not echo** — so if the
+live feed connects and immediately closes, check the echo first
+(`ws_accept_subprotocol` in `deps.py`). A `?token=` query param also works but
+puts the JWT in access logs and Referer headers; prefer the subprotocol.
+
+Guard the never-opened case with a handshake attempt cap. A rejected handshake
+is indistinguishable from a transient failure at the browser API, so without a
+cap an auth error becomes an infinite reconnect loop.
 
 ### Rules
 - **Unknown `type` must be ignored, never crash.** Keep an `UnknownMessage`
