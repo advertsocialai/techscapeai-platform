@@ -354,6 +354,17 @@ async def send_report_whatsapp(
     exist yet; if they are missing the response is
     `{"status": "unavailable", ...}` with a 200, not an import crash.
 
+    As of this writing that package HAS landed and resolves to
+    `get_whatsapp_provider(business_id).send_freeform(...)`, which — with no
+    Meta credentials configured — is `StubWhatsAppProvider`: it writes a
+    `whatsapp_outbox` row and transmits nothing.
+
+    Note the 24-hour rule: a scheduled report is an UNSOLICITED message, so
+    outside WhatsApp's customer-service window `send_freeform` raises
+    `SessionWindowClosed`. That surfaces as a structured per-recipient error
+    telling the operator to register a Meta-approved report template — it is
+    not a crash, and the endpoint still returns the rendered report.
+
     `dry_run` defaults to TRUE and no real message has been sent from this code
     path — there are no WhatsApp credentials in this environment.
     """

@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from app.core.deps import require_role
 from app.schemas.travel import CallOut
-from app.services.travel import call_feed
+from app.services.travel import activity_log, call_feed
 from app.services.travel.call_service import CallService
 from app.services.travel.takeover_service import TakeoverError, TakeoverService
 
@@ -84,6 +84,11 @@ async def monitor_call(
     except TakeoverError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e))
     await _broadcast_takeover(str(call_id), "monitoring")
+    activity_log.record(
+        user["id"], "call.takeover.monitor", "call", call_id,
+        user["business_id"], user.get("branch_id"),
+        {"to_state": "monitoring"},
+    )
     return updated
 
 
@@ -104,6 +109,11 @@ async def barge_call(
     except TakeoverError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e))
     await _broadcast_takeover(str(call_id), "coaching")
+    activity_log.record(
+        user["id"], "call.takeover.barge", "call", call_id,
+        user["business_id"], user.get("branch_id"),
+        {"to_state": "coaching"},
+    )
     return updated
 
 
@@ -122,6 +132,11 @@ async def full_takeover(
     except TakeoverError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e))
     await _broadcast_takeover(str(call_id), "human")
+    activity_log.record(
+        user["id"], "call.takeover.full", "call", call_id,
+        user["business_id"], user.get("branch_id"),
+        {"to_state": "human"},
+    )
     return updated
 
 
@@ -140,6 +155,11 @@ async def release_call(
     except TakeoverError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e))
     await _broadcast_takeover(str(call_id), "ai")
+    activity_log.record(
+        user["id"], "call.takeover.release", "call", call_id,
+        user["business_id"], user.get("branch_id"),
+        {"to_state": "ai"},
+    )
     return updated
 
 

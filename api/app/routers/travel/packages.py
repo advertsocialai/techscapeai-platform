@@ -37,6 +37,7 @@ from pydantic import BaseModel, Field
 
 from app.core.deps import require_role
 from app.services.travel.package_service import PackageService
+from app.services.travel import activity_log
 
 router = APIRouter()
 
@@ -149,9 +150,15 @@ def create_package(payload: PackageCreate, user: dict = Depends(_write)):
                 status.HTTP_422_UNPROCESSABLE_ENTITY, "max_pax must be >= min_pax"
             )
     body["currency"] = body["currency"].upper()
-    return PackageService().create(
+    row = PackageService().create(
         UUID(user["business_id"]), body, branch_id=_scope(user)
     )
+    activity_log.record(
+        user["id"], "package.created", "package", row.get("id"),
+        user["business_id"], user.get("branch_id"),
+        {"name": row.get("name"), "category": row.get("category")},
+    )
+    return row
 
 
 @router.patch("/{package_id}", response_model=PackageOut)
@@ -169,6 +176,11 @@ def update_package(
     )
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Package not found")
+    activity_log.record(
+        user["id"], "package.updated", "package", package_id,
+        user["business_id"], user.get("branch_id"),
+        {"fields": sorted(patch)},
+    )
     return row
 
 
@@ -181,4 +193,9 @@ def delete_package(package_id: UUID, user: dict = Depends(_write)):
     )
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Package not found")
+    activity_log.record(
+        user["id"], "package.deleted", "package", package_id,
+        user["business_id"], user.get("branch_id"),
+        {"soft": True},
+    )
     return row

@@ -6,6 +6,7 @@ destination signals, scores intent strength, and persists a lead. Used by
 the inbound WhatsApp dispatcher and direct UI submissions.
 """
 from __future__ import annotations
+import logging
 import re
 from typing import Optional
 from uuid import UUID
@@ -13,6 +14,8 @@ from uuid import UUID
 from app.database import get_supabase_admin
 
 from .customer_memory import CustomerMemoryService
+
+logger = logging.getLogger(__name__)
 
 
 _NUM_RE = re.compile(r"(\d[\d,]*)\s*(k|K|lakh|lakhs|L|crore|cr)?")
@@ -120,6 +123,23 @@ class LeadService:
             "phone":           customer_phone,
             "language":        language,
         }).execute().data[0]
+
+        # Phase 4 T6: auto-schedule the Day 1/3/7 follow-up ladder.
+        # Idempotent (unique index on (lead_id, ladder_day) plus a pre-read),
+        # so a retried ingest still leaves exactly one ladder. Deliberately
+        # non-fatal: a follow-up scheduling failure must never lose the lead
+        # that was just captured — the lead is the valuable artifact here, the
+        # ladder can be rebuilt later via POST /follow-ups/schedule.
+        try:
+            from app.services.travel.followup_service import FollowUpService
+            FollowUpService().schedule_for_lead(
+                UUID(row["id"]), business_id, created_at=row.get("created_at"),
+            )
+        except Exception:
+            logger.exception(
+                "follow-up ladder scheduling failed for lead=%s (lead itself was saved)",
+                row.get("id"),
+            )
         return row
 
     def list(self, business_id: UUID, *,
