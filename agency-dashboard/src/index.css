@@ -781,3 +781,28 @@ button {
 
 .rollup-total { display: flex; align-items: center; gap: 12px; }
 .rollup-amount { font-size: 28px; font-weight: 800; }
+
+/* ── FE Phase 6: AI config + admin ──────────────────────────────────────── */
+
+.question-list { display: grid; gap: 8px; }
+.question-row { display: flex; gap: 8px; align-items: center; }
+.question-order {
+  width: 22px; height: 22px; flex: none; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: grid; place-items: center; font-size: 10px; color: var(--text-dim);
+}
+
+.lang-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lang-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 999px; cursor: pointer;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-dim); font-size: 11px; font-family: inherit;
+}
+.lang-chip.on { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+.lang-chip.primary { border-color: var(--green); color: var(--green); background: var(--green-dim); }
+.chip-tag { font-size: 9px; opacity: 0.8; }
+
+.form-stack { display: grid; gap: 10px; }
+.stack-field { display: grid; gap: 4px; font-size: 11px; color: var(--text-dim); }
+.stack-field .input { width: 100%; }

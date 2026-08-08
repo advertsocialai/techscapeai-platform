@@ -21,6 +21,8 @@ import ReportsPage from './features/reports/ReportsPage'
 import CostPage from './features/reports/CostPage'
 import TeamPage from './features/team/TeamPage'
 import ActivityLogPage from './features/team/ActivityLogPage'
+import AiConfigPage from './features/playbooks/AiConfigPage'
+import EmpirePage from './features/admin/EmpirePage'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { me, loading } = useAuth()
@@ -58,6 +60,8 @@ export default function App() {
         <Route path="/team" element={<TeamPage />} />
         <Route path="/activity" element={<ActivityLogPage />} />
         <Route path="/playbooks" element={<PlaybooksPage />} />
+        <Route path="/ai-config" element={<AiConfigPage />} />
+        <Route path="/empire" element={<EmpirePage />} />
         <Route path="/live-call" element={<LiveCallPage />} />
         <Route path="/live-call/:callId" element={<LiveCallDetailPage />} />
       </Route>

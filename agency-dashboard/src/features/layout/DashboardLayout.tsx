@@ -1,7 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import { hasRole, roleLabel, type Role } from '../../lib/rbac'
 
-const NAV_SECTIONS: { label: string; items: { to: string; label: string }[] }[] = [
+/**
+ * `minimum` hides a link the user's role cannot use. This is a UX affordance,
+ * NOT access control — the server re-reads the caller's row and ignores the
+ * token's role claim, so a hidden link is still reachable by typing the URL and
+ * still correctly refused there. Hiding it just stops people clicking into a
+ * guaranteed 403.
+ */
+type NavItem = { to: string; label: string; minimum?: Role }
+
+const NAV_SECTIONS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Main',
     items: [
@@ -41,8 +51,10 @@ const NAV_SECTIONS: { label: string; items: { to: string; label: string }[] }[] 
     label: 'Operations',
     items: [
       { to: '/playbooks', label: 'AI Playbook' },
-      { to: '/team', label: 'Team' },
-      { to: '/activity', label: 'Activity Log' },
+      { to: '/ai-config', label: 'AI Config', minimum: 'manager' },
+      { to: '/team', label: 'Team', minimum: 'manager' },
+      { to: '/activity', label: 'Activity Log', minimum: 'manager' },
+      { to: '/empire', label: 'Empire', minimum: 'manager' },
     ],
   },
 ]
@@ -64,7 +76,9 @@ export default function DashboardLayout() {
           {NAV_SECTIONS.map((section) => (
             <div key={section.label}>
               <div className="nav-section-label">{section.label}</div>
-              {section.items.map((item) => (
+              {section.items
+                .filter((item) => !item.minimum || hasRole(me?.user, item.minimum))
+                .map((item) => (
                 <NavLink
                   key={item.to}
                   to={item.to}
@@ -86,7 +100,7 @@ export default function DashboardLayout() {
               <div style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {me?.user.first_name || me?.user.email}
               </div>
-              <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>{me?.user.role}</div>
+              <div style={{ fontSize: 9, color: 'var(--text-dim)' }}>{roleLabel(me?.user.role)}</div>
             </div>
             <button
               className="btn ghost"
