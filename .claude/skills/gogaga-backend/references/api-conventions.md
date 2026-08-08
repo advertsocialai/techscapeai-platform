@@ -23,24 +23,57 @@ Query params: `limit` (default 50, max 200) + `offset` (default 0). Response car
 - Money: numeric INR values as numbers (not strings), field names amount_* ; never floats in Python — use Decimal in services.
 
 ## WebSocket message contract — /ws/calls/{call_id}
-Every frame is JSON with a `type` discriminator. Defined types:
+
+> **CORRECTED 2026-08-08.** This section previously described a contract the
+> code does not implement, and a frontend was built against it before the
+> divergence was caught. What follows was read off the **five** actual
+> `call_feed.publish(...)` call sites. Grep that symbol before trusting any doc,
+> including this one.
+
+Every frame is JSON with a `type` discriminator. **Exactly five types are
+emitted:**
 
 ```json
-{ "type": "transcript", "call_id": "...", "seq": 12, "speaker": "customer|ai|agent",
-  "text_original": "...", "text_translated": "...", "language": "te|en|hi",
+{ "type": "transcript", "call_id": "...", "seq": 1, "speaker": "customer|ai|agent",
+  "text_original": "...", "text_translated": null, "language": "te|en|hi",
   "timestamp_ms": 1234567, "is_final": true }
 
-{ "type": "whisper", "call_id": "...", "seq": 13,
-  "suggestion": "...", "confidence": 0.82 }        // Phase 3
-
 { "type": "call_status", "call_id": "...",
-  "status": "active|completed|failed", "mode": "ai|agent|conference" }
+  "status": "active|completed", "mode": "ai|agent" }
 
-{ "type": "sentiment", "call_id": "...", "seq": 14,
-  "scores": { "excitement": 0.7, "intent": 0.8, "price_sensitivity": 0.4, "urgency": 0.6 } }   // Phase 3
+{ "type": "sentiment", "call_id": "...", "transcript_id": "...",
+  "scores": { "excitement": 0.7, "intent": 0.8, "price_sensitivity": 0.4 } }
+
+{ "type": "suggestion", "call_id": "...", "text": "...", "mode": "claude|keyword" }
+
+{ "type": "takeover_state", "call_id": "...",
+  "takeover_state": "ai|monitoring|coaching|human" }
 ```
 
-Rules: `seq` is monotonically increasing per call (lets the frontend detect gaps after reconnect). Unknown `type` must be ignored by clients, never crash. Auth: JWT on connect (header or first message — match what Phase 2 implements, then record here). Server never sends secrets over WS.
+### Do NOT build against these — no publisher exists
+
+| Type | Status |
+|---|---|
+| `whisper` | **Never emitted.** The real frame is `suggestion`, with `{text, mode}` — zero field overlap with the old `{suggestion, confidence}`. No confidence is computed anywhere. |
+| `speaking`, `intent`, `event`, `extraction` | **Never emitted.** They appear in FE loop prompts only. UI built on them renders permanently empty (`DEBT-15`). |
+| `summary` | **Never emitted** on this feed. The only `"type": "summary"` in the repo is a follow-up-ladder step in `followup_service.py`. |
+| `urgency` (4th sentiment dimension) | **Not computed.** `score_text()` returns exactly three. |
+| `status: "failed"`, `mode: "conference"` | Not written by any code path. |
+
+### Rules
+
+- **`seq` is hardcoded to `1`** at its single emit site, and only `transcript`
+  carries it. It is NOT monotonic. **Do not build gap detection on it** — it
+  would fire constantly and lie to the user.
+- Unknown `type` must be ignored by clients, never crash.
+- **Auth: the `Sec-WebSocket-Protocol` subprotocol — `['bearer', <jwt>]`.**
+  This replaced a header-only dependency that made the endpoint *unreachable
+  from any browser*, since the `WebSocket` constructor cannot set headers. The
+  server echoes `bearer` on accept; RFC 6455 says a browser silently drops a
+  connection whose offered subprotocol was not echoed. `Authorization: Bearer`
+  still works for non-browser clients; `?token=` is accepted last (it leaks the
+  JWT into access logs).
+- Server never sends secrets over WS.
 
 ## Latency instrumentation log line (Phase 2, one per turn)
 ```
