@@ -371,6 +371,7 @@ async def send_report_whatsapp(
     result = await deliver_report(
         channel="whatsapp", recipients=recipients, body=text,
         report=report, dry_run=body.dry_run,
+        business_id=str(user["business_id"]),
     )
     if result["status"] in ("sent", "queued"):
         get_supabase_admin().table("report_schedules").update(

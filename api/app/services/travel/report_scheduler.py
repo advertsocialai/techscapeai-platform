@@ -284,6 +284,7 @@ class ReportScheduler:
                 body=body,
                 report=report,
                 dry_run=False,
+                business_id=str(item["business_id"]),
             )
             entry["status"] = result["status"]
             entry["delivery"] = result
@@ -306,38 +307,71 @@ class ReportScheduler:
 # ══════════════════════════════════════════════════════════════════════════
 # DELIVERY — WhatsApp service is owned by another workstream
 # ══════════════════════════════════════════════════════════════════════════
-def load_whatsapp_sender():
+def load_whatsapp_sender(business_id: str):
     """Resolve the WhatsApp send capability at CALL TIME, never at import time.
 
-    `app/services/whatsapp/` is being built by a different agent. Importing it
-    at module scope would make this whole module (and therefore the reports
-    router, and therefore the app) fail to import if those files are missing,
-    half-written, or land later. So the import lives inside the function body
-    behind try/except and returns None when unavailable.
+    `app/services/whatsapp/` is owned by a different workstream (Phase 4 T3).
+    Importing it at module scope would make this module — and therefore the
+    reports router, and therefore the whole app — fail to import if those files
+    are missing, half-written, or land after this one. So the import lives
+    inside this function body behind try/except ImportError and degrades to
+    (None, reason) instead of raising.
 
-    Returns (callable, dotted_name) or (None, reason).
+    Preferred contract (what T3 actually shipped):
+        from app.services.whatsapp import get_whatsapp_provider
+        provider = get_whatsapp_provider(business_id)
+        await provider.send_freeform(to, text)     # inside the 24h window
+        await provider.send_template(to, name, lang, components)
+
+    Older / alternative shapes are still probed after it, so this keeps working
+    if that package is refactored.
+
+    Returns (send_coroutine_factory, description) or (None, reason).
+    The factory takes (to: str, text: str) and returns an awaitable.
     """
-    candidates = (
+    tried: list[str] = []
+
+    # 1) The real T3 contract: a provider factory.
+    tried.append("app.services.whatsapp.get_whatsapp_provider")
+    try:
+        from app.services.whatsapp import get_whatsapp_provider  # noqa: PLC0415
+    except ImportError:
+        get_whatsapp_provider = None                             # type: ignore[assignment]
+    except Exception as exc:            # a broken module must not 500 the report
+        logger.warning("whatsapp package raised on import: %s", exc)
+        get_whatsapp_provider = None                             # type: ignore[assignment]
+    if get_whatsapp_provider is not None:
+        try:
+            provider = get_whatsapp_provider(business_id)
+        except Exception as exc:
+            return None, f"get_whatsapp_provider raised: {type(exc).__name__}: {exc}"[:300]
+
+        def _send(to: str, text: str):
+            return provider.send_freeform(to, text)
+
+        return _send, f"app.services.whatsapp.get_whatsapp_provider → {type(provider).__name__}.send_freeform"
+
+    # 2) Fallback shapes, in case the package is refactored to a flat function.
+    for module_path, attr in (
         ("app.services.whatsapp", "send_message"),
         ("app.services.whatsapp", "send_whatsapp_message"),
-        ("app.services.whatsapp", "send_text"),
         ("app.services.whatsapp.client", "send_message"),
-        ("app.services.whatsapp.whatsapp_service", "send_message"),
-    )
-    tried: list[str] = []
-    for module_path, attr in candidates:
+    ):
         dotted = f"{module_path}.{attr}"
         tried.append(dotted)
         try:
             module = __import__(module_path, fromlist=[attr])
         except ImportError:
             continue
-        except Exception as exc:               # a broken module must not 500 us
+        except Exception as exc:
             logger.warning("whatsapp module %s raised on import: %s", module_path, exc)
             continue
         fn = getattr(module, attr, None)
         if callable(fn):
-            return fn, dotted
+            def _send(to: str, text: str, _fn=fn):
+                return _fn(to=to, body=text)
+            return _send, dotted
+
     return None, ("whatsapp send capability not found; tried " + ", ".join(tried))
 
 
@@ -348,12 +382,15 @@ async def deliver_report(
     body: str,
     report: dict,
     dry_run: bool = True,
+    business_id: str = "",
 ) -> dict[str, Any]:
     """Send a rendered report over `channel`.
 
-    Nothing leaves the process while `dry_run` is True, which is the default
-    everywhere it is called from. No real message has ever been sent from this
-    code path — there are no WhatsApp credentials in this environment.
+    Nothing leaves the process while `dry_run` is True, which is the default at
+    every call site. In this environment there are no WhatsApp credentials, so
+    even a non-dry run resolves to T3's StubWhatsAppProvider, which writes an
+    outbox row and transmits nothing. No real message has been sent from this
+    code path.
     """
     base: dict[str, Any] = {
         "channel": channel,
@@ -367,20 +404,32 @@ async def deliver_report(
         return {**base, "status": "dry_run", "detail": "nothing sent (dry_run=true)"}
 
     if channel == "whatsapp":
-        sender, info = load_whatsapp_sender()
+        sender, info = load_whatsapp_sender(business_id)
         if sender is None:
             return {**base, "status": "unavailable", "detail": info}
         results = []
         for to in recipients:
             try:
-                out = sender(to=to, body=body)
+                out = sender(to, body)
                 if hasattr(out, "__await__"):
                     out = await out
-                results.append({"to": to, "ok": True, "result": str(out)[:200]})
+                results.append({"to": to, "ok": True, "result": str(out)[:300]})
             except Exception as exc:
-                logger.exception("report whatsapp send failed for %s", to)
-                results.append({"to": to, "ok": False,
-                                "error": f"{type(exc).__name__}: {exc}"[:200]})
+                # SessionWindowClosed is the expected, actionable failure for an
+                # unsolicited report: outside WhatsApp's 24h customer-service
+                # window only a pre-approved TEMPLATE may be sent. Matched by
+                # class name so this module never has to import the whatsapp
+                # package at module scope.
+                kind = type(exc).__name__
+                detail = f"{kind}: {exc}"[:300]
+                if kind == "SessionWindowClosed":
+                    detail += (" — a scheduled report is an unsolicited message; "
+                               "register a Meta-approved report template and send "
+                               "it via provider.send_template().")
+                else:
+                    logger.exception("report whatsapp send failed for %s", to)
+                results.append({"to": to, "ok": False, "error": detail,
+                                "error_kind": kind})
         ok = all(r["ok"] for r in results)
         return {**base, "status": "sent" if ok else "partial_failure",
                 "sender": info, "results": results}
