@@ -1,107 +1,178 @@
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
-import { leadsApi, customersApi } from '../../lib/api'
-import type { LeadStatus } from '../../types/travel'
+/**
+ * S2 — Guest Story. Everything known about one lead, on one screen.
+ *
+ * Assembled from four independent endpoints. Each renders its own state, so a
+ * missing customer record does not blank the lead detail that loaded fine —
+ * partial knowledge shown honestly beats an all-or-nothing error page.
+ */
+import { useQuery } from '@tanstack/react-query'
+import { Link, useParams } from 'react-router-dom'
 
-const STATUS_OPTIONS: LeadStatus[] = ['new', 'qualified', 'itinerary_sent', 'negotiating', 'booked', 'lost']
+import { activityApi, callsApi, customersApi, leadsApi } from '../../lib/api'
+import { formatMoney } from '../../lib/money'
+import { isReadOnly } from '../../lib/rbac'
+import { useAuth } from '../../lib/auth'
+import { ErrorState, SkeletonRows } from '../../components/DataState'
+import AssignAgent from './AssignAgent'
 
-function formatInr(n: number | null) {
-  if (!n) return '—'
-  return `₹${n.toLocaleString('en-IN')}`
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="field-row">
+      <span className="field-label">{label}</span>
+      <span className="field-value">{value ?? <span className="muted-count">—</span>}</span>
+    </div>
+  )
 }
 
 export default function GuestStoryPage() {
   const { leadId } = useParams<{ leadId: string }>()
-  const navigate = useNavigate()
-  const qc = useQueryClient()
+  const { me } = useAuth()
+  const readOnly = isReadOnly(me?.user)
 
   const leadQ = useQuery({
     queryKey: ['lead', leadId],
-    queryFn: () => leadsApi.get(leadId as string),
+    queryFn: () => leadsApi.get(leadId!),
     enabled: !!leadId,
   })
 
-  const customerQ = useQuery({
-    queryKey: ['customer', leadQ.data?.customer_id],
-    queryFn: () => customersApi.get(leadQ.data!.customer_id as string),
-    enabled: !!leadQ.data?.customer_id,
-  })
-
-  const statusMutation = useMutation({
-    mutationFn: (status: LeadStatus) => leadsApi.updateStatus(leadId as string, status),
-    onSuccess: (updated) => {
-      qc.setQueryData(['lead', leadId], updated)
-      qc.invalidateQueries({ queryKey: ['leads'] })
-    },
-  })
-
-  if (leadQ.isLoading) return <div className="loading-block">Loading…</div>
-  if (leadQ.isError || !leadQ.data) return <div className="content"><div className="error-banner">Lead not found.</div></div>
-
   const lead = leadQ.data
-  const customer = customerQ.data as { full_name?: string; email?: string; phone?: string } | undefined
+
+  const customerQ = useQuery({
+    queryKey: ['customer', lead?.customer_id],
+    queryFn: () => customersApi.get(lead!.customer_id!),
+    enabled: !!lead?.customer_id,
+  })
+
+  const activityQ = useQuery({
+    queryKey: ['activity', 'lead', leadId],
+    queryFn: () => activityApi.list({ entity: 'lead', entity_id: leadId!, limit: 30 }),
+    enabled: !!leadId,
+  })
+
+  // There is no "calls for this lead" endpoint, so this filters the live list.
+  // It therefore only ever shows ACTIVE calls — stated in the panel rather than
+  // left to look like "this lead has never been called".
+  const liveQ = useQuery({ queryKey: ['calls', 'live'], queryFn: callsApi.live })
+  const leadCalls = (liveQ.data ?? []).filter((c) => c.lead_id === leadId)
+
+  if (!leadId) return <ErrorState error={new Error('No lead id in the URL')} />
 
   return (
     <>
       <div className="topbar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button className="btn ghost" onClick={() => navigate('/journey-board')}>← Back</button>
-          <div>
-            <div className="page-title">Guest Story {customer?.full_name ? `— ${customer.full_name}` : ''}</div>
-            <div className="page-sub">Lead #{lead.id.slice(0, 8)} · via {lead.source}</div>
+        <div>
+          <div className="page-title">
+            <Link to="/journey-board" className="crumb">Journey Board</Link>
+            <span className="crumb-sep">/</span>
+            {lead?.destination_hint || lead?.intent || 'Guest Story'}
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select
-            value={lead.status}
-            onChange={(e) => statusMutation.mutate(e.target.value as LeadStatus)}
-            disabled={statusMutation.isPending}
-            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', borderRadius: 8, padding: '7px 10px', fontSize: 12 }}
-          >
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <div className="page-sub">
+            {lead ? `${lead.status} · ${lead.qualification} · score ${lead.score}` : 'Loading…'}
+          </div>
         </div>
       </div>
+
       <div className="content">
-        <div className="grid-2">
-          <div>
-            <div className="card" style={{ marginBottom: 14, background: 'rgba(16,185,129,0.05)', borderColor: 'var(--green-border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div className="t2">Lead Score</div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--green)' }}>
-                  {lead.score}<span style={{ fontSize: 13, color: 'var(--text-dim)' }}>/100</span>
+        {leadQ.isLoading ? (
+          <SkeletonRows rows={5} height={48} />
+        ) : leadQ.isError ? (
+          <ErrorState error={leadQ.error} onRetry={() => leadQ.refetch()} />
+        ) : !lead ? (
+          <div className="state-block">
+            <p className="state-title">Lead not found</p>
+            <p className="state-reason">
+              It may belong to another branch, or have been deleted.
+            </p>
+          </div>
+        ) : (
+          <div className="story-grid">
+            <div className="story-main">
+              <div className="card">
+                <div className="t2" style={{ marginBottom: 12 }}>The ask</div>
+                <p className="story-message">{lead.raw_message}</p>
+                <div className="field-list">
+                  <Field label="Destination" value={lead.destination_hint} />
+                  <Field label="Intent" value={lead.intent} />
+                  <Field label="Travellers" value={lead.pax_count} />
+                  <Field label="Duration" value={lead.duration_days ? `${lead.duration_days} days` : null} />
+                  <Field
+                    label="Budget"
+                    value={lead.budget_inr != null ? formatMoney(lead.budget_inr, 'INR') : null}
+                  />
+                  <Field label="Source" value={lead.source} />
                 </div>
               </div>
-              <span className={`badge ${lead.qualification === 'hot' ? 'red' : lead.qualification === 'warm' ? 'amber' : 'white'}`}>
-                {lead.qualification}
-              </span>
-            </div>
-            <div className="card">
-              <div className="t2" style={{ marginBottom: 12 }}>Trip Details</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div><div className="t4" style={{ marginBottom: 4 }}>Destination</div><div>{lead.destination_hint || '—'}</div></div>
-                <div><div className="t4" style={{ marginBottom: 4 }}>Budget</div><div>{formatInr(lead.budget_inr)}</div></div>
-                <div><div className="t4" style={{ marginBottom: 4 }}>Pax</div><div>{lead.pax_count ?? '—'}</div></div>
-                <div><div className="t4" style={{ marginBottom: 4 }}>Duration</div><div>{lead.duration_days ? `${lead.duration_days} days` : '—'}</div></div>
-                <div><div className="t4" style={{ marginBottom: 4 }}>Phone</div><div>{customer?.phone || '—'}</div></div>
-                <div><div className="t4" style={{ marginBottom: 4 }}>Email</div><div>{customer?.email || '—'}</div></div>
+
+              <div className="card">
+                <div className="t2" style={{ marginBottom: 12 }}>Activity</div>
+                {activityQ.isLoading ? (
+                  <SkeletonRows rows={4} height={38} />
+                ) : activityQ.isError ? (
+                  <ErrorState error={activityQ.error} onRetry={() => activityQ.refetch()} />
+                ) : (activityQ.data ?? []).length === 0 ? (
+                  <p className="state-reason" style={{ margin: 0 }}>
+                    Nothing recorded against this lead yet.
+                  </p>
+                ) : (
+                  <ul className="activity-list">
+                    {(activityQ.data ?? []).map((row) => (
+                      <li key={row.id} className="activity-item">
+                        <span className="activity-action">{row.action}</span>
+                        <span className="activity-time">
+                          {new Date(row.at).toLocaleString()}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
-          </div>
-          <div>
-            <div className="card">
-              <div className="t2" style={{ marginBottom: 10 }}>Original Message</div>
-              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', lineHeight: 1.7 }}>
-                "{lead.raw_message}"
+
+            <aside className="story-side">
+              <div className="card">
+                <div className="t2" style={{ marginBottom: 12 }}>Guest</div>
+                {!lead.customer_id ? (
+                  <p className="state-reason" style={{ margin: 0 }}>
+                    No customer record is linked to this lead yet.
+                  </p>
+                ) : customerQ.isLoading ? (
+                  <SkeletonRows rows={3} height={30} />
+                ) : customerQ.isError ? (
+                  <ErrorState error={customerQ.error} onRetry={() => customerQ.refetch()} />
+                ) : (
+                  <div className="field-list">
+                    <Field label="Name" value={(customerQ.data as { name?: string })?.name} />
+                    <Field label="Phone" value={(customerQ.data as { phone?: string })?.phone} />
+                    <Field label="Email" value={(customerQ.data as { email?: string })?.email} />
+                  </div>
+                )}
               </div>
-              {lead.intent && lead.intent !== lead.raw_message && (
-                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-dim)' }}>
-                  Extracted intent: {lead.intent}
-                </div>
-              )}
-            </div>
+
+              <AssignAgent leadId={lead.id} readOnly={readOnly} />
+
+              <div className="card">
+                <div className="t2" style={{ marginBottom: 12 }}>Calls</div>
+                {leadCalls.length === 0 ? (
+                  <p className="state-reason" style={{ margin: 0 }}>
+                    No <strong>active</strong> calls for this lead. Past calls are not listed —
+                    the backend exposes no per-lead call history endpoint.
+                  </p>
+                ) : (
+                  <ul className="live-mini-list">
+                    {leadCalls.map((c) => (
+                      <li key={c.id}>
+                        <Link to={`/live-call/${c.id}`} className="live-mini-item">
+                          <span className="badge live">● live</span>
+                          <span>{c.provider_sid ?? c.id.slice(0, 8)}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </aside>
           </div>
-        </div>
+        )}
       </div>
     </>
   )
