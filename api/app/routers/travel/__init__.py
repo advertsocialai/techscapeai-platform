@@ -26,6 +26,10 @@ from .ai_config   import router as ai_config_router  # Phase 3 T2
 from .packages    import router as packages_router   # Phase 4 T1
 from .payments    import router as payments_router   # Phase 4 T2/T8
 from .whatsapp    import router as whatsapp_router   # Phase 4 T3
+from .reports     import router as reports_router    # Phase 4 T4/T5
+from .followups   import router as followups_router  # Phase 4 T6
+from .activity    import router as activity_router   # Phase 4 T7
+from .usage       import router as usage_router      # Phase 4 T9
 
 
 travel_router = APIRouter(prefix="/travel/v1")
@@ -53,6 +57,12 @@ travel_router.include_router(packages_router,   prefix="/packages",    tags=["Tr
 # JWT-authed — same convention as the Plivo voice webhook above.
 travel_router.include_router(payments_router,                          tags=["Travel · Payments"])         # P4 T2/T8
 travel_router.include_router(whatsapp_router,   prefix="/whatsapp",    tags=["Travel · WhatsApp"])         # P4 T3
+# reports declares its own full paths (/reports/*, /report-schedules/*) —
+# mounted with no prefix, same as payments.
+travel_router.include_router(reports_router,                           tags=["Travel · Reports"])          # P4 T4/T5
+travel_router.include_router(followups_router,  prefix="/follow-ups",  tags=["Travel · Follow-ups"])       # P4 T6
+travel_router.include_router(activity_router,   prefix="/activity-log", tags=["Travel · Activity Log"])    # P4 T7
+travel_router.include_router(usage_router,      prefix="/analytics",   tags=["Travel · Cost & Usage"])     # P4 T9
 
 # NOT included in travel_router — mounted directly on `app` with no
 # prefix in main.py so the live-feed WS is exactly ws://<host>/ws/calls/{id},
