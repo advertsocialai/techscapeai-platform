@@ -160,8 +160,13 @@ class MetaCloudProvider(WhatsAppProvider):
         """
         Meta exposes no endpoint to query the window, so it is derived from the
         last inbound message we observed (base.py). Unknown => closed.
+
+        Scoped to this provider's business: another tenant's inbound message
+        from the same number must not open THIS tenant's free-form window.
         """
-        return session_window_open(normalize_msisdn(to))
+        return session_window_open(
+            normalize_msisdn(to), business_id=self.business_id
+        )
 
     async def send_template(
         self,

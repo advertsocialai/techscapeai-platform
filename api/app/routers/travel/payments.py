@@ -141,7 +141,8 @@ def _apply_expiry(db, row: dict) -> dict:
     if expiry and expiry <= datetime.now(timezone.utc):
         updated = (
             db.table(_TABLE).update({"status": STATUS_EXPIRED})
-            .eq("id", row["id"]).execute().data
+            .eq("id", row["id"]).eq("business_id", str(row.get("business_id")))
+            .execute().data
         )
         return updated[0] if updated else {**row, "status": STATUS_EXPIRED}
     return row
@@ -221,14 +222,14 @@ async def create_payment_link(body: PaymentLinkCreate, user: dict = Depends(_AGE
             notes={**(body.notes or {}), "business_id": business_id, "payment_link_id": row["id"]},
         )
     except NotImplementedError as exc:
-        db.table(_TABLE).delete().eq("id", row["id"]).execute()
+        db.table(_TABLE).delete().eq("id", row["id"]).eq("business_id", business_id).execute()
         raise HTTPException(http_status.HTTP_501_NOT_IMPLEMENTED, str(exc))
     except PaymentGatewayError as exc:
         # Roll back the placeholder — a row with no link is worse than no row.
-        db.table(_TABLE).delete().eq("id", row["id"]).execute()
+        db.table(_TABLE).delete().eq("id", row["id"]).eq("business_id", business_id).execute()
         raise HTTPException(http_status.HTTP_502_BAD_GATEWAY, str(exc))
     except ValueError as exc:
-        db.table(_TABLE).delete().eq("id", row["id"]).execute()
+        db.table(_TABLE).delete().eq("id", row["id"]).eq("business_id", business_id).execute()
         raise HTTPException(http_status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
 
     updated = (
@@ -237,7 +238,7 @@ async def create_payment_link(body: PaymentLinkCreate, user: dict = Depends(_AGE
             "gateway_short_url": result.gateway_short_url,
             "status": result.status,
             "expiry_at": result.expiry_at.isoformat() if result.expiry_at else None,
-        }).eq("id", row["id"]).execute().data
+        }).eq("id", row["id"]).eq("business_id", business_id).execute().data
     )
     final = updated[0] if updated else row
     logger.info(
@@ -312,7 +313,11 @@ def transition_payment_link(
             f"Illegal status transition {current} -> {target}",
         )
 
-    updated = db.table(_TABLE).update({"status": target}).eq("id", row["id"]).execute().data
+    updated = (
+        db.table(_TABLE).update({"status": target})
+        .eq("id", row["id"]).eq("business_id", str(user["business_id"]))
+        .execute().data
+    )
     logger.info("payment link %s transitioned %s -> %s by user=%s", row["id"], current, target, user["id"])
     return updated[0] if updated else {**row, "status": target}
 
@@ -389,7 +394,12 @@ async def razorpay_webhook(request: Request):
     if link_id and not row.get("gateway_link_id"):
         patch["gateway_link_id"] = link_id
 
-    db.table(_TABLE).update(patch).eq("id", row["id"]).execute()
+    # A webhook carries no tenant context of its own — the row it resolved to
+    # supplies it. Pinning business_id keeps a gateway callback incapable of
+    # writing outside the single tenant that owns the link it named.
+    db.table(_TABLE).update(patch).eq("id", row["id"]).eq(
+        "business_id", str(row.get("business_id"))
+    ).execute()
     logger.info(
         "payment webhook applied: link=%s %s -> %s (event=%s, business=%s)",
         row["id"], current, target, event.get("event"), row.get("business_id"),

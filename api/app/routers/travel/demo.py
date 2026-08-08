@@ -50,9 +50,12 @@ async def playbook_walkthrough(
     booking = booking[0] if booking else None
     customer = None
     if booking and booking.get("customer_id"):
+        # business_id repeated even though customer_id came off a scoped
+        # booking — this profile's name/email lands in the rendered output.
         cu = (
             db.table("travel_customer_profiles").select("*")
-            .eq("id", booking["customer_id"]).limit(1).execute().data
+            .eq("id", booking["customer_id"])
+            .eq("business_id", str(biz_id)).limit(1).execute().data
         )
         customer = cu[0] if cu else None
 

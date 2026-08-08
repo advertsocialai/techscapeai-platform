@@ -97,9 +97,14 @@ def update_ai_config(body: AiConfigPatch, user: dict = Depends(_MANAGER_PLUS)):
     if not patch:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "No fields to update")
 
+    # business_id is repeated on the UPDATE, not just on the _get_config read:
+    # this row drives every future call's system prompt + escalation rules, so
+    # an unscoped UPDATE would be a cross-tenant mutation of another business's
+    # AI behaviour — worse than any read leak.
     updated = (
         db.table("travel_ai_config").update(patch)
-        .eq("id", config["id"]).execute().data
+        .eq("id", config["id"])
+        .eq("business_id", user["business_id"]).execute().data
     )
     return updated[0] if updated else config
 

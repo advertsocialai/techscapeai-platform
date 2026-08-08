@@ -130,6 +130,11 @@ class WikiService:
             embedding = embed_text(f"{r.get('title', '')} {r.get('content', '')}")
             if embedding is None:
                 continue
-            self.db.table("travel_wiki").update({"embedding": embedding}).eq("id", r["id"]).execute()
+            # business_id repeated on the UPDATE — an unscoped write keyed on a
+            # loop variable is one refactor away from a cross-tenant mutation.
+            (
+                self.db.table("travel_wiki").update({"embedding": embedding})
+                .eq("id", r["id"]).eq("business_id", str(business_id)).execute()
+            )
             updated += 1
         return updated

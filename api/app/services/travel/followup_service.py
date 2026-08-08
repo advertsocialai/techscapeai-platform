@@ -312,7 +312,9 @@ class FollowUpService:
         if existing:
             rule_rows = (
                 self.db.table("follow_up_rules").update(payload)
-                .eq("id", existing[0]["id"]).execute().data or []
+                .eq("id", existing[0]["id"])
+                .eq("business_id", str(business_id))
+                .execute().data or []
             )
         else:
             rule_rows = self.db.table("follow_up_rules").insert(payload).execute().data or []
@@ -362,7 +364,15 @@ class FollowUpService:
             patch = dict(plan["patch"])
             if isinstance(patch.get("due_at"), datetime):
                 patch["due_at"] = patch["due_at"].isoformat()
-            self.db.table("follow_ups").update(patch).eq("id", plan["id"]).execute()
+            # business_id predicate is redundant with the scoped select above
+            # and kept deliberately: a cross-tenant UPDATE must be impossible
+            # by construction, not by the correctness of the preceding read.
+            (
+                self.db.table("follow_ups").update(patch)
+                .eq("id", plan["id"])
+                .eq("business_id", str(business_id))
+                .execute()
+            )
         return len(plans)
 
     # ── scheduling ───────────────────────────────────────────────────
@@ -379,14 +389,30 @@ class FollowUpService:
 
         Wire this into lead creation (services/travel/lead_service.py
         LeadService.ingest, right after the travel_leads insert).
+
+        TENANT ISOLATION — `lead_id` arrives from a request body
+        (POST /follow-ups/schedule), so ownership is proven HERE, not assumed.
+        The lookup below is filtered by business_id AND its result is checked:
+        a lead belonging to another business is indistinguishable from a
+        nonexistent one and yields [] (the router reports `created: []`), so a
+        guessed UUID can neither read another tenant's created_at nor attach
+        follow_ups rows to their lead. The check runs even when `created_at`
+        was supplied by the caller — a passed-in timestamp is a performance
+        hint, never an authorisation.
         """
-        if created_at is None:
-            lead = (
-                self.db.table("travel_leads").select("created_at, business_id")
-                .eq("id", str(lead_id)).limit(1).execute().data or []
+        lead = (
+            self.db.table("travel_leads").select("created_at")
+            .eq("id", str(lead_id))
+            .eq("business_id", str(business_id))
+            .limit(1).execute().data or []
+        )
+        if not lead:
+            logger.warning(
+                "follow-up scheduling refused: lead=%s not found in business=%s",
+                lead_id, business_id,
             )
-            if not lead:
-                return []
+            return []
+        if created_at is None:
             created_at = lead[0]["created_at"]
 
         rules = self.list_rules(business_id, branch_id=branch_id)
@@ -395,7 +421,9 @@ class FollowUpService:
         already = {
             r["ladder_day"] for r in (
                 self.db.table("follow_ups").select("ladder_day")
-                .eq("lead_id", str(lead_id)).execute().data or []
+                .eq("lead_id", str(lead_id))
+                .eq("business_id", str(business_id))
+                .execute().data or []
             )
         }
 
@@ -535,5 +563,9 @@ class FollowUpService:
             q = q.eq("business_id", str(business_id))
         ids = [r["id"] for r in (q.execute().data or [])]
         for row_id in ids:
-            self.db.table("follow_ups").update({"status": "overdue"}).eq("id", row_id).execute()
+            u = self.db.table("follow_ups").update({"status": "overdue"}).eq("id", row_id)
+            if business_id is not None:
+                # Never let a per-tenant sweep escape its tenant.
+                u = u.eq("business_id", str(business_id))
+            u.execute()
         return len(ids)

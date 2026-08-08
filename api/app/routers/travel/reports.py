@@ -387,7 +387,9 @@ async def send_report_whatsapp(
     if result["status"] in ("sent", "queued"):
         get_supabase_admin().table("report_schedules").update(
             {"last_run_at": datetime.now(dt_timezone.utc).isoformat()}
-        ).eq("id", str(schedule_id)).execute()
+        ).eq("id", str(schedule_id)).eq(
+            "business_id", str(user["business_id"])
+        ).execute()
 
     return {
         "schedule_id": str(schedule_id),

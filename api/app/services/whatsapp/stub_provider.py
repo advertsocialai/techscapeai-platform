@@ -42,7 +42,9 @@ class StubWhatsAppProvider(WhatsAppProvider):
         the day credentials arrive, which is precisely when it is most
         expensive to discover.
         """
-        return session_window_open(normalize_msisdn(to))
+        return session_window_open(
+            normalize_msisdn(to), business_id=self.business_id
+        )
 
     async def send_template(
         self,

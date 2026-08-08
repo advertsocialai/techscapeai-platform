@@ -265,7 +265,9 @@ class ReportScheduler:
 
             schedule = (
                 self.db.table("report_schedules").select("*")
-                .eq("id", str(item["schedule_id"])).limit(1).execute().data or []
+                .eq("id", str(item["schedule_id"]))
+                .eq("business_id", str(item["business_id"]))
+                .limit(1).execute().data or []
             )
             recipients = (schedule[0].get("recipients") if schedule else []) or []
             body = render_report_text(report)
@@ -291,7 +293,9 @@ class ReportScheduler:
             if result["status"] in ("sent", "queued"):
                 self.db.table("report_schedules").update(
                     {"last_run_at": now_utc.isoformat()}
-                ).eq("id", str(item["schedule_id"])).execute()
+                ).eq("id", str(item["schedule_id"])).eq(
+                    "business_id", str(item["business_id"])
+                ).execute()
                 entry["last_run_at"] = now_utc.isoformat()
             dispatched.append(entry)
 

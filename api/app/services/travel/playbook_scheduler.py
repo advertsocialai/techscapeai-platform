@@ -94,9 +94,14 @@ class PlaybookScheduler:
         items = self.due(business_id, on_date=on_date)
         dispatched: list[dict] = []
         for item in items:
+            # Both re-reads carry business_id even though the ids came from a
+            # scoped due() list: this loop feeds real outbound sends (customer
+            # email/phone), so it must not be able to resolve another tenant's
+            # booking or customer if due() is ever changed or called directly.
             bkg = (
                 self.db.table("travel_bookings").select("*")
-                .eq("id", item["booking_id"]).limit(1).execute().data
+                .eq("id", item["booking_id"])
+                .eq("business_id", str(business_id)).limit(1).execute().data
             )
             if not bkg:
                 continue
@@ -105,7 +110,8 @@ class PlaybookScheduler:
             if bkg.get("customer_id"):
                 cu = (
                     self.db.table("travel_customer_profiles").select("*")
-                    .eq("id", bkg["customer_id"]).limit(1).execute().data
+                    .eq("id", bkg["customer_id"])
+                    .eq("business_id", str(business_id)).limit(1).execute().data
                 )
                 customer = cu[0] if cu else None
             ctx = self.exec.build_context(business=business, booking=bkg, customer=customer)

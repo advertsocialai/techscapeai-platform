@@ -124,30 +124,55 @@ def normalize_msisdn(to: str) -> str:
 # the window reads CLOSED and free-form is refused. Being wrong in that
 # direction costs one unnecessary template; being wrong the other way costs a
 # policy violation against the business's WhatsApp number.
-_INBOUND_SEEN: dict[str, datetime] = {}
+#
+# TENANT-KEYED (Phase 5 P1 isolation audit): the key is (business_id, msisdn),
+# never the msisdn alone. The 24-hour window is a property of ONE business's
+# conversation with a customer — if agency A's customer messages A, that must
+# not authorise agency B to send that same number free-form text on B's own
+# WABA. Keying by number alone would make one tenant's inbound traffic unlock
+# another tenant's outbound policy gate. business_id is therefore part of the
+# key, and an unknown/omitted business_id simply reads as a distinct namespace
+# that has never seen an inbound — i.e. closed, per the fail-closed rule above.
+_INBOUND_SEEN: dict[tuple[str, str], datetime] = {}
+
+
+def _window_key(business_id: Optional[str], to: str) -> tuple[str, str]:
+    return (str(business_id or ""), normalize_msisdn(to))
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def record_inbound(to: str, at: Optional[datetime] = None) -> datetime:
-    """Record a customer's inbound message — this is what opens the window."""
-    key = normalize_msisdn(to)
+def record_inbound(
+    to: str,
+    at: Optional[datetime] = None,
+    *,
+    business_id: Optional[str] = None,
+) -> datetime:
+    """Record a customer's inbound message — this is what opens the window.
+
+    `business_id` scopes the window to the tenant whose WhatsApp number
+    received the message. The inbound-webhook handler (a separate task) MUST
+    pass it; omitting it records into an unowned namespace that no provider
+    reads, which fails closed rather than opening the window for everyone.
+    """
     ts = at or _utcnow()
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
-    _INBOUND_SEEN[key] = ts
+    _INBOUND_SEEN[_window_key(business_id, to)] = ts
     return ts
 
 
-def last_inbound_at(to: str) -> Optional[datetime]:
-    return _INBOUND_SEEN.get(normalize_msisdn(to))
+def last_inbound_at(to: str, *, business_id: Optional[str] = None) -> Optional[datetime]:
+    return _INBOUND_SEEN.get(_window_key(business_id, to))
 
 
-def session_window_open(to: str, *, now: Optional[datetime] = None) -> bool:
-    """True iff the customer messaged us within the last SESSION_WINDOW_HOURS."""
-    last = last_inbound_at(to)
+def session_window_open(
+    to: str, *, now: Optional[datetime] = None, business_id: Optional[str] = None
+) -> bool:
+    """True iff THIS BUSINESS's customer messaged it within SESSION_WINDOW_HOURS."""
+    last = last_inbound_at(to, business_id=business_id)
     if last is None:
         return False
     return (now or _utcnow()) - last < timedelta(hours=SESSION_WINDOW_HOURS)
@@ -199,7 +224,9 @@ class WhatsAppProvider(ABC):
         async def _guarded(self: "WhatsAppProvider", to: str, text: str,
                            *args: Any, **kw: Any) -> dict:
             if not await _maybe_await(self.check_session_window(to)):
-                raise SessionWindowClosed(to, last_inbound_at(to))
+                raise SessionWindowClosed(
+                    to, last_inbound_at(to, business_id=self.business_id)
+                )
             return await _maybe_await(fn(self, to, text, *args, **kw))
 
         _guarded.__wa_window_guarded__ = True  # type: ignore[attr-defined]
@@ -278,8 +305,12 @@ class WhatsAppProvider(ABC):
         return inserted[0] if inserted else row
 
     def _outbox_update(self, outbox_id: str, patch: dict[str, Any]) -> dict:
+        # business_id predicate is not optional even though `outbox_id` came
+        # from this provider's own insert: a provider instance is bound to one
+        # tenant, so its writes must be structurally unable to touch another.
         updated = (
             self.db.table(OUTBOX_TABLE).update(patch)
-            .eq("id", outbox_id).execute().data
+            .eq("id", outbox_id).eq("business_id", self.business_id)
+            .execute().data
         )
         return updated[0] if updated else {"id": outbox_id, **patch}
