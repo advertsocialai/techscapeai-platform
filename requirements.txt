@@ -1,3 +1,10 @@
+# Root requirements — mirrors api/requirements.txt.
+#
+# The backend source lives in api/. This file exists for root-context builds
+# (e.g. a platform that auto-detects requirements.txt at the repo root); the
+# Docker build uses context ./api and therefore resolves api/requirements.txt.
+# Keep the two in sync — a divergence here silently breaks root-context deploys.
+
 # FastAPI + ASGI server
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
@@ -11,13 +18,26 @@ pydantic[email]==2.10.4
 supabase==2.10.0
 
 # HTTP client
-httpx==0.28.1
+# Pinned <0.28 because supabase 2.10.0 requires httpx>=0.26,<0.28.
+httpx>=0.26,<0.28
+
+# Auth (JWT + password hashing + Fernet encryption)
+PyJWT==2.10.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.2.1
+cryptography==44.0.0
 
 # Utilities
 python-dotenv==1.0.1
 python-multipart==0.0.20
 
-# Development
-pytest==8.3.4
-pytest-asyncio==0.25.0
-httpx==0.28.1
+# Wiki semantic search (Phase 2 T8) — local embedder, no API key needed
+fastembed==0.8.0
+
+# Tests (api/tests/ — DB-free smoke suite; see conftest.py)
+pytest==9.1.1
+
+# Redis (Phase 3 T8) — call_feed pub/sub + JWT blacklist.
+# Optional: both fall back to in-process/in-memory when REDIS_URL is unset,
+# but the package must be installed for the Redis path to ever engage.
+redis==5.2.1

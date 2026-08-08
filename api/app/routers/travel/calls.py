@@ -67,12 +67,13 @@ async def call_feed_ws(websocket: WebSocket, call_id: UUID, user: dict = Depends
 
     await websocket.accept()
     key = str(call_id)
-    call_feed.register(key, websocket)
+    # subscribe_call picks the backend: it relays from the Redis channel when
+    # REDIS_URL is set, and otherwise registers on the in-process listener set
+    # and waits for disconnect. Calling register() directly here would strand
+    # the connection when Redis is active, because publish() short-circuits to
+    # the channel and never touches the in-process listeners.
     try:
-        while True:
-            # Clients don't need to send anything — this is a push feed —
-            # but we still need to await something to detect disconnects.
-            await websocket.receive_text()
+        await call_feed.subscribe_call(key, websocket)
     except WebSocketDisconnect:
         pass
     finally:

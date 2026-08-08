@@ -49,11 +49,15 @@ def _stub_summary(transcript_rows: list[dict]) -> dict:
     """Fallback when no ANTHROPIC_API_KEY: keyword-extract from transcript."""
     all_text = " ".join(r["text_original"] for r in transcript_rows if r.get("speaker") == "customer")
     turns = len(transcript_rows)
+    # The prefix must stay outside the ternary: implicit string concatenation
+    # binds tighter than `if/else`, so writing it inline made the whole prefixed
+    # string the true-branch and left the false-branch as bare `all_text`. That
+    # returned '' for a transcript with no customer text, and since the pipeline's
+    # idempotency guard is a truthiness check on `summary`, an empty summary let
+    # every re-run repeat all writes.
+    sample = f"{all_text[:200]}..." if len(all_text) > 200 else all_text
     return {
-        "summary": (
-            f"Call with {turns} transcript rows. "
-            f"Customer text sample: {all_text[:200]}..." if len(all_text) > 200 else all_text
-        ),
+        "summary": f"Call with {turns} transcript rows. Customer text sample: {sample}",
         "destination": None,
         "budget_inr": None,
         "duration_days": None,
@@ -152,11 +156,20 @@ async def run_pipeline(call_id: str, business_id: str) -> None:
             "business_id", business_id).execute()
         logger.info("post_call: updated travel_leads %s with %s", call["lead_id"], list(lead_patch))
 
-    # Write summary + final sentiment to travel_calls
-    final_sentiment = result.get("lead_score", 40) / 100.0
+    # Write summary + final sentiment to travel_calls.
+    # `.get(key, default)` does not apply the default when the key is present
+    # and null, which Claude's JSON can be — so coerce explicitly. Otherwise
+    # `None / 100.0` raised a TypeError here, after travel_leads had already
+    # been patched above and before the summary landed, leaving the row mutated
+    # with no idempotency guard set.
+    lead_score = result.get("lead_score") or 40
+    summary_text = result.get("summary") or "(no summary produced)"
+    # sentiment_score is NUMERIC(4,3) — round to 3, not 4, so Postgres stores
+    # exactly what we computed instead of silently re-rounding.
+    final_sentiment = round(lead_score / 100.0, 3)
     db.table("travel_calls").update({
-        "summary": result.get("summary", ""),
-        "sentiment_score": round(final_sentiment, 4),
+        "summary": summary_text,
+        "sentiment_score": final_sentiment,
     }).eq("id", call_id).execute()
 
     # Log event

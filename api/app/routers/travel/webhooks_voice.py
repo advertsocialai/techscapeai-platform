@@ -6,7 +6,7 @@ Phase 3 additions:
   T3: suggestion_service.schedule() after each transcript (fire-and-forget)
   T4: sentiment_service.schedule() after each transcript (fire-and-forget)
   T5: post_call_service.schedule() on call stop (fire-and-forget)
-  T6: embeddings.embed_transcript() after transcript row created
+  T6: embeddings.schedule_transcript_embedding() after transcript row created
   T7: multi-tenant phone routing — resolves business_id from the "To"
       field via business_phone_numbers table (falls back to PLIVO_BUSINESS_ID)
   T9: per-participant recording URL stored in travel_calls (BLOCKED: no Plivo creds)
@@ -35,7 +35,7 @@ from app.services.travel.voice import (
     select_stt_engine, stream_xml, transcribe_utterance, verify_plivo_signature,
 )
 from app.services.travel import suggestion_service, sentiment_service, post_call_service
-from app.services.travel.embeddings import embed_transcript
+from app.services.travel.embeddings import schedule_transcript_embedding
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -258,8 +258,8 @@ async def media_stream(websocket: WebSocket, provider: str):
                             result["text"], "customer"
                         )
 
-                        # T6: embed transcript text (fire-and-forget)
-                        embed_transcript(transcript_row["id"], result["text"])
+                        # T6: embed transcript text (fire-and-forget, off the event loop)
+                        schedule_transcript_embedding(transcript_row["id"], result["text"])
 
                         # T3: suggestion generation (fire-and-forget, OFFLINE mode)
                         suggestion_service.schedule(

@@ -28,3 +28,7 @@ fastembed==0.8.0
 
 # Tests (api/tests/ — added 2026-08-07, DB-free smoke suite; see conftest.py)
 pytest==9.1.1
+# Redis (Phase 3 T8) — call_feed pub/sub + JWT blacklist.
+# Optional: both fall back to in-process/in-memory when REDIS_URL is unset,
+# but the package must be installed for the Redis path to ever engage.
+redis==5.2.1

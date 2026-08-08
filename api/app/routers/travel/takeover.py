@@ -146,7 +146,12 @@ async def release_call(
 @router.get("/{call_id}/events")
 def get_call_events(call_id: UUID, user: dict = Depends(_AGENT_PLUS)):
     """List all state-machine events for a call."""
-    CallService().get_call_scoped(
+    # get_call_scoped returns None (it does not raise) when the call belongs to
+    # another business or is not assigned to this agent — the result must be
+    # checked, or the event log leaks across tenants.
+    call = CallService().get_call_scoped(
         call_id, UUID(user["business_id"]), assigned_agent=_scoped_agent(user)
-    )  # scope check — raises 404 if out of scope
+    )
+    if not call:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Call not found")
     return TakeoverService().get_events(call_id)

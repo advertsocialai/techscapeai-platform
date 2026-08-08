@@ -10,6 +10,7 @@ embed_text() is first called, not at import time, so routes that never
 touch search stay fast to import.
 """
 from __future__ import annotations
+import asyncio
 import logging
 from typing import Optional
 
@@ -62,3 +63,22 @@ def embed_transcript(transcript_id: str, text: str) -> bool:
     except Exception:
         logger.exception("embed_transcript: failed to persist for id=%s", transcript_id)
         return False
+
+
+def schedule_transcript_embedding(transcript_id: str, text: str) -> None:
+    """Fire-and-forget transcript embedding — never blocks the voice path.
+
+    embed_transcript() is synchronous and slow: ONNX inference plus a blocking
+    Supabase write, and on the very first call it also downloads the ~67MB
+    model. Awaiting it (or calling it inline) from the media-stream handler
+    stalls the event loop for every concurrent call, so it runs in the default
+    executor thread instead.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.run_in_executor(None, embed_transcript, transcript_id, text)
+        else:
+            embed_transcript(transcript_id, text)
+    except Exception:
+        logger.exception("Failed to schedule embedding for transcript=%s", transcript_id)
