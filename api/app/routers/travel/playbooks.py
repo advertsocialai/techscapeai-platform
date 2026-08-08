@@ -112,16 +112,24 @@ async def dispatch_playbook(
         booking = BookingService().get(booking_id, biz_id)
 
     db = PlaybookExecutor().db
+    # body.customer_id is caller-supplied: without a business_id predicate a
+    # guessed/leaked profile UUID returned ANOTHER TENANT'S customer row —
+    # and that row's email/phone then became the dispatch recipient below and
+    # was persisted into this tenant's playbook-run audit `rendered` payload.
+    # Both lookups are scoped; an out-of-scope id simply resolves to no
+    # customer (never 403 — do not leak existence).
     if booking and booking.get("customer_id"):
         cu = (
             db.table("travel_customer_profiles").select("*")
-            .eq("id", booking["customer_id"]).limit(1).execute().data
+            .eq("id", booking["customer_id"])
+            .eq("business_id", str(biz_id)).limit(1).execute().data
         )
         customer = cu[0] if cu else None
     elif body.customer_id:
         cu = (
             db.table("travel_customer_profiles").select("*")
-            .eq("id", str(body.customer_id)).limit(1).execute().data
+            .eq("id", str(body.customer_id))
+            .eq("business_id", str(biz_id)).limit(1).execute().data
         )
         customer = cu[0] if cu else None
 

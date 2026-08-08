@@ -55,6 +55,12 @@ class CallService:
         return call
 
     def get_transcript(self, call_id: UUID) -> list[dict]:
+        """CONTRACT: travel_transcripts carries no business_id column (see
+        migration 0003) — tenancy lives on the parent travel_calls row. The
+        caller MUST have resolved the call through get_call_scoped() and
+        turned a None result into a 404 BEFORE calling this; get_call_scoped
+        returns None rather than raising, so an unchecked result enforces
+        nothing and this query would return another tenant's transcript."""
         return (
             self.db.table("travel_transcripts").select("*")
             .eq("call_id", str(call_id))

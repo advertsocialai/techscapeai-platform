@@ -63,7 +63,9 @@ def append_past_trip(
     cur = CustomerMemoryService().get(profile_id, UUID(biz["id"]))
     if not cur:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
-    row = CustomerMemoryService().append_past_trip(profile_id, trip.model_dump(exclude_none=True))
+    row = CustomerMemoryService().append_past_trip(
+        profile_id, UUID(biz["id"]), trip.model_dump(exclude_none=True),
+    )
     if not row:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Failed to append")
     return row

@@ -18,7 +18,47 @@
     {"method":"POST","path":"/api/travel/v1/calls/00000000-0000-0000-0000-000000000000/takeover/full","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":403}},
     {"method":"POST","path":"/api/travel/v1/calls/00000000-0000-0000-0000-000000000000/takeover/release","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":403}},
     {"method":"GET","path":"/api/travel/v1/calls/00000000-0000-0000-0000-000000000000/events","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":403}},
-    {"method":"POST","path":"/api/techscape/v1/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}}
+    {"method":"POST","path":"/api/techscape/v1/auth/logout","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+
+    {"method":"GET","path":"/api/travel/v1/packages","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/travel/v1/packages","body":{"name":"matrix-probe package","duration_days":3,"base_price_inr":1000},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/packages/00000000-0000-0000-0000-000000000000","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":404}},
+    {"method":"PATCH","path":"/api/travel/v1/packages/00000000-0000-0000-0000-000000000000","body":{"name":"matrix-probe rename"},"expect":{"super_admin":404,"admin":404,"agent":403,"viewer":403}},
+    {"method":"DELETE","path":"/api/travel/v1/packages/00000000-0000-0000-0000-000000000000","expect":{"super_admin":404,"admin":404,"agent":403,"viewer":403}},
+
+    {"method":"GET","path":"/api/travel/v1/payment-links","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/travel/v1/payment-links","body":{"amount":"1.00","currency":"INR","gateway":"stub","description":"matrix-probe"},"expect":{"super_admin":201,"admin":201,"agent":201,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/payment-links/00000000-0000-0000-0000-000000000000","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":404}},
+    {"method":"POST","path":"/api/travel/v1/payment-links/00000000-0000-0000-0000-000000000000/transition","body":{"status":"sent"},"expect":{"super_admin":404,"admin":404,"agent":404,"viewer":403}},
+
+    {"method":"GET","path":"/api/travel/v1/whatsapp/outbox","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"GET","path":"/api/travel/v1/whatsapp/outbox/00000000-0000-0000-0000-000000000000","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":404}},
+    {"method":"POST","path":"/api/travel/v1/whatsapp/send","body":{"to":"matrix-probe-not-a-phone-number","message_type":"template","template_name":"matrix_probe"},"expect":{"super_admin":422,"admin":422,"agent":422,"viewer":403}},
+
+    {"method":"GET","path":"/api/travel/v1/reports/daily","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"GET","path":"/api/travel/v1/reports/weekly","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"GET","path":"/api/travel/v1/reports/monthly","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"GET","path":"/api/travel/v1/reports/scheduled/due","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/travel/v1/reports/scheduled/run-due?dry_run=true","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/reports/00000000-0000-0000-0000-000000000000/pdf","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":404}},
+    {"method":"POST","path":"/api/travel/v1/reports/00000000-0000-0000-0000-000000000000/send-whatsapp","body":{"dry_run":true},"expect":{"super_admin":404,"admin":404,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/report-schedules","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":200}},
+    {"method":"POST","path":"/api/travel/v1/report-schedules","body":{"report_type":"daily","delivery_channel":"whatsapp","send_time":"09:00:00","recipients":[],"is_active":false},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/report-schedules/00000000-0000-0000-0000-000000000000","expect":{"super_admin":404,"admin":404,"agent":404,"viewer":404}},
+    {"method":"PATCH","path":"/api/travel/v1/report-schedules/00000000-0000-0000-0000-000000000000","body":{"is_active":false},"expect":{"super_admin":404,"admin":404,"agent":403,"viewer":403}},
+    {"method":"DELETE","path":"/api/travel/v1/report-schedules/00000000-0000-0000-0000-000000000000","expect":{"super_admin":404,"admin":404,"agent":403,"viewer":403}},
+
+    {"method":"GET","path":"/api/travel/v1/follow-ups","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/follow-ups/rules","expect":{"super_admin":200,"admin":200,"agent":200,"viewer":403}},
+    {"method":"PUT","path":"/api/travel/v1/follow-ups/rules","body":{"ladder_day":1,"type":"nudge","channel":"whatsapp","is_active":true},"expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"POST","path":"/api/travel/v1/follow-ups/schedule","body":{"lead_id":"00000000-0000-0000-0000-000000000000"},"expect":{"super_admin":201,"admin":201,"agent":403,"viewer":403}},
+    {"method":"PATCH","path":"/api/travel/v1/follow-ups/00000000-0000-0000-0000-000000000000","body":{"status":"done"},"expect":{"super_admin":404,"admin":404,"agent":404,"viewer":403}},
+
+    {"method":"GET","path":"/api/travel/v1/activity-log","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+
+    {"method":"GET","path":"/api/travel/v1/analytics/cost","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/analytics/cost/rate-card","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}},
+    {"method":"GET","path":"/api/travel/v1/analytics/revenue-rollup","expect":{"super_admin":200,"admin":200,"agent":403,"viewer":403}}
   ],
   "_notes": [
     "leads.py's assigned-only scoping (Phase 2 T1) is DONE — agent-tier GET/list is restricted to assigned_agent=self, manager+ stays business-wide. Status-code matrix above still shows 200/200/200/403 for GET (all non-viewer roles get 200; the ROW-LEVEL filtering isn't a status-code difference) — row-level proof needs real per-agent fixtures with different assignments, done in PHASE2_REPORT.md T1/T7 evidence, not this static spec.",

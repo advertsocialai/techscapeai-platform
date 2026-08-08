@@ -63,15 +63,23 @@ class CustomerMemoryService:
             })
         return None
 
-    def set_last_intent(self, profile_id: UUID, intent: str) -> None:
+    def set_last_intent(self, profile_id: UUID, business_id: UUID, intent: str) -> None:
+        # business_id is required on the UPDATE: profile_id reaches here from
+        # request-shaped data, and an unscoped UPDATE is a cross-tenant write.
         self.db.table("travel_customer_profiles").update(
             {"last_intent": intent}
-        ).eq("id", str(profile_id)).execute()
+        ).eq("id", str(profile_id)).eq("business_id", str(business_id)).execute()
 
-    def append_past_trip(self, profile_id: UUID, summary: dict) -> dict | None:
+    def append_past_trip(self, profile_id: UUID, business_id: UUID,
+                         summary: dict) -> dict | None:
+        # Both the read-modify-write read AND the write are business-scoped.
+        # The router does check ownership first, but this method must not rely
+        # on that: an unscoped read here leaks another tenant's past_trips and
+        # the unscoped UPDATE then appends a row to their profile.
         cur = (
             self.db.table("travel_customer_profiles").select("past_trips")
-            .eq("id", str(profile_id)).limit(1).execute().data
+            .eq("id", str(profile_id)).eq("business_id", str(business_id))
+            .limit(1).execute().data
         )
         if not cur:
             return None
@@ -79,5 +87,5 @@ class CustomerMemoryService:
         trips.append(summary)
         r = self.db.table("travel_customer_profiles").update(
             {"past_trips": trips}
-        ).eq("id", str(profile_id)).execute()
+        ).eq("id", str(profile_id)).eq("business_id", str(business_id)).execute()
         return r.data[0] if r.data else None

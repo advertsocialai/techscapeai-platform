@@ -146,7 +146,7 @@ class ItineraryAgent:
 
         # 5. Remember the latest intent on the profile.
         if profile and profile.get("id"):
-            self.memory.set_last_intent(UUID(profile["id"]), intent)
+            self.memory.set_last_intent(UUID(profile["id"]), business_id, intent)
 
         return row
 
@@ -176,10 +176,13 @@ class ItineraryAgent:
         total_cost_inr = int(result.get("total_cost_inr") or src.get("total_cost_inr") or 0)
         cost_breakdown = result.get("cost_breakdown") or src.get("cost_breakdown") or {}
 
-        # mark original as modified and insert a new version
+        # mark original as modified and insert a new version.
+        # business_id is repeated on the UPDATE (not just on the read above):
+        # an UPDATE keyed on a caller-supplied path id alone is a cross-tenant
+        # mutation the moment the read and the write drift apart.
         self.db.table("travel_itineraries").update({"status": "modified"}).eq(
             "id", str(itinerary_id)
-        ).execute()
+        ).eq("business_id", str(business_id)).execute()
 
         new_row = self.db.table("travel_itineraries").insert({
             "business_id":    str(business_id),

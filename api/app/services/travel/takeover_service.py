@@ -67,13 +67,19 @@ class TakeoverService:
                 f"(allowed from {current}: {VALID_TRANSITIONS.get(current, [])})"
             )
 
-    def _update_takeover_state(self, call_id: UUID, new_state: str, mode: str | None = None) -> dict:
+    def _update_takeover_state(self, call_id: UUID, business_id: UUID,
+                               new_state: str, mode: str | None = None) -> dict:
+        # business_id is a required predicate on the UPDATE itself, not just on
+        # the _get_call() read above it: a cross-tenant mutation is worse than a
+        # read leak, so the write must not depend on an earlier check staying
+        # correct as this state machine grows.
         patch: dict = {"takeover_state": new_state}
         if mode is not None:
             patch["mode"] = mode
         row = (
             self.db.table("travel_calls").update(patch)
             .eq("id", str(call_id))
+            .eq("business_id", str(business_id))
             .execute().data
         )
         return row[0] if row else {}
@@ -147,7 +153,7 @@ class TakeoverService:
                 call["mpc_uuid"], supervisor_number, coach=True
             )
 
-        updated = self._update_takeover_state(call_id, "monitoring")
+        updated = self._update_takeover_state(call_id, business_id, "monitoring")
         self._log_event(call_id, "takeover_monitor", actor_id, {
             "previous_state": call["takeover_state"],
             "supervisor_number": supervisor_number,
@@ -168,7 +174,7 @@ class TakeoverService:
                 call["mpc_uuid"], supervisor_number, coach=False
             )
 
-        updated = self._update_takeover_state(call_id, "coaching")
+        updated = self._update_takeover_state(call_id, business_id, "coaching")
         self._log_event(call_id, "takeover_barge", actor_id, {
             "previous_state": call["takeover_state"],
             "supervisor_number": supervisor_number,
@@ -190,7 +196,7 @@ class TakeoverService:
             logger.info("full takeover: would mute AI participant on MPC %s — BLOCKED (creds absent)",
                         call["mpc_uuid"])
 
-        updated = self._update_takeover_state(call_id, "human", mode="agent")
+        updated = self._update_takeover_state(call_id, business_id, "human", mode="agent")
         self._log_event(call_id, "takeover_full", actor_id, {
             "previous_state": call["takeover_state"],
             "previous_mode": call.get("mode"),
@@ -208,13 +214,18 @@ class TakeoverService:
             logger.info("release: would unmute AI participant on MPC %s — BLOCKED (creds absent)",
                         call["mpc_uuid"])
 
-        updated = self._update_takeover_state(call_id, "ai", mode="ai")
+        updated = self._update_takeover_state(call_id, business_id, "ai", mode="ai")
         self._log_event(call_id, "takeover_release", actor_id, {
             "previous_state": call["takeover_state"],
         })
         return updated
 
     def get_events(self, call_id: UUID) -> list[dict]:
+        """CONTRACT: travel_call_events carries no business_id column (see
+        migration 0005) — tenancy lives on the parent travel_calls row. The
+        caller MUST have resolved the call through a business-scoped lookup
+        (CallService.get_call_scoped) and turned a None result into a 404
+        BEFORE calling this, or the event log leaks across tenants."""
         return (
             self.db.table("travel_call_events").select("*")
             .eq("call_id", str(call_id))
