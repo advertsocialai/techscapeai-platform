@@ -54,7 +54,23 @@ def _get_redis():
     return _redis_client
 
 
-_CHANNEL_PREFIX = "gogaga:call:"
+# ── Channel namespacing ─────────────────────────────────────────────
+# Format: "gogaga:{environment}:call:{call_id}".
+#
+# TENANT ISOLATION (Phase 5 P1 audit): there is deliberately no business_id in
+# the channel name. `call_id` is a server-generated UUIDv4 primary key, so it is
+# already globally unique — two tenants cannot collide on one, and a tenant
+# prefix would add no isolation the UUID does not already provide. What a
+# channel name can NEVER provide is authorisation: knowing a call_id is not
+# permission to watch it. That check belongs in the WS route handler, which must
+# resolve the call scoped by the caller's business_id before subscribing.
+#
+# The ENVIRONMENT segment is the collision that was actually possible: staging
+# and production pointed at one Redis instance share a keyspace, and a seeded or
+# replayed fixture call_id (not random) would then cross deployments. Namespacing
+# by environment removes that without touching the publish/subscribe contract.
+_CHANNEL_NAMESPACE = (getattr(settings, "ENVIRONMENT", "") or "unknown").strip().lower()
+_CHANNEL_PREFIX = f"gogaga:{_CHANNEL_NAMESPACE}:call:"
 
 
 # ── Public interface ────────────────────────────────────────────────

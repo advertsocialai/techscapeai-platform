@@ -96,6 +96,23 @@ def decode_refresh_token(token: str) -> dict[str, Any]:
 # Phase 3 T8: tries Redis first (SETEX <jti> <ttl> 1 — multi-worker,
 # survives restarts). Falls back to in-memory dict (single-worker,
 # same as Phase 2) when REDIS_URL is not set. See BLOCKERS.md B-P3-04.
+#
+# KEY FORMAT: "{ENVIRONMENT}:jti:{jti}".
+#
+# TENANT ISOLATION (Phase 5 P1 audit): deliberately NOT keyed by business_id.
+# The blacklist is fail-safe in one direction only — a key's presence REVOKES a
+# token, it never grants one — so a cross-tenant key collision could at worst
+# log somebody out, never let them in. A jti is 8/12 random bytes from
+# secrets.token_urlsafe, so that collision is not reachable in practice either.
+# Adding business_id would instead create a real hazard: a token whose `biz`
+# claim was tampered with would look up a different key and evade its own
+# revocation. The jti alone is the correct, tamper-independent key.
+#
+# The ENVIRONMENT segment IS needed: staging and production sharing one Redis
+# would otherwise share one revocation keyspace, letting a non-production
+# logout (or a flush of that namespace) act on production tokens.
+_JTI_NAMESPACE = (getattr(settings, "ENVIRONMENT", "") or "unknown").strip().lower()
+_JTI_KEY_PREFIX = f"{_JTI_NAMESPACE}:jti:"
 _blacklisted_jti: dict[str, float] = {}
 _redis_jti = None
 _redis_jti_failed = False
@@ -125,7 +142,7 @@ def blacklist_jti(jti: str, ttl_seconds: float) -> None:
     r = _get_redis_jti()
     if r is not None:
         try:
-            r.setex(f"jti:{jti}", int(ttl_seconds) + 1, "1")
+            r.setex(f"{_JTI_KEY_PREFIX}{jti}", int(ttl_seconds) + 1, "1")
             return
         except Exception:
             pass  # fall through to in-memory
@@ -138,7 +155,7 @@ def is_jti_blacklisted(jti: Optional[str]) -> bool:
     r = _get_redis_jti()
     if r is not None:
         try:
-            return bool(r.exists(f"jti:{jti}"))
+            return bool(r.exists(f"{_JTI_KEY_PREFIX}{jti}"))
         except Exception:
             pass  # fall through to in-memory
     expires_at = _blacklisted_jti.get(jti)
