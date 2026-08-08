@@ -113,8 +113,24 @@ segment — staging and production sharing one Redis would share one revocation
 keyspace, letting a non-production logout act on production tokens. Added to
 both JTI keys and call-feed channels.
 
-**Semantic-search RPC isolation** — audited as part of the P4/infra sweep;
-see §PartiallyDone for its exact state.
+**Semantic-search RPC isolation — the WHERE clauses were fine; the GRANTS were
+not.** Both `match_travel_wiki` and `match_travel_transcripts` DO take and
+enforce `p_business_id` internally (the transcripts one joins `travel_calls`
+and gates on `c.business_id`, so a foreign `p_call_id` returns zero rows; a
+NULL business id also fails closed, since `NULL = NULL` is `NULL`). **The real
+gap was who may call them:** Postgres grants `EXECUTE` to `PUBLIC` by default,
+so both RPCs were reachable by the PostgREST `anon`/`authenticated` roles with
+any `p_business_id` — FastAPI bypassed entirely. What held was only that the
+underlying tables have RLS and these are SECURITY INVOKER, i.e. one permissive
+policy away from a cross-tenant read.
+
+Migration `0017_rpc_tenant_isolation.sql` closes it: `CREATE OR REPLACE` with
+byte-identical bodies plus explicit `SECURITY INVOKER` and a pinned
+`search_path` (so a future edit cannot silently become definer-rights), then
+`REVOKE ALL … FROM PUBLIC, anon, authenticated` and `GRANT EXECUTE … TO
+service_role`. Privilege-only — no table, column, index or row touched.
+**RLS is table-level and has no function equivalent; `REVOKE EXECUTE` is the
+only function-level control.**
 
 ---
 
@@ -176,12 +192,6 @@ recipient so validation 422s before any provider I/O.
 
 ## §PartiallyDone
 
-- **RPC-level isolation (P1)** — the `match_travel_transcripts` /
-  `match_travel_wiki` audit was assigned and the sweep agent's Redis half
-  landed, but no `0017_rpc_tenant_isolation.sql` was written. **Next step:**
-  read both function bodies; if the SQL does not filter `business_id`
-  internally, a PostgREST-reachable caller can retrieve another tenant's
-  transcripts entirely bypassing FastAPI. Treat as P1, not P5.
 - **Tenant onboarding endpoint (P2)** — `POST /api/platform/v1/tenants` not
   built. Tenant B exists as a seeded fixture rather than having been created
   through the flow, so the flow itself is unproven.
@@ -242,14 +252,13 @@ fallback.
 
 ## §NextSprintPriority
 
-1. **Finish the RPC isolation check.** It is the one P1 item left, and it is
-   the only remaining path where a caller could bypass every FastAPI fix made
-   this sprint. Do this before anything else.
-2. **Get a database in front of this work.** Nineteen migrations (`0001`–`0019`)
+1. **Get a database in front of this work.** Nineteen migrations (`0001`–`0019`)
    are written; law 7's RLS proof is outstanding for `0009`–`0019`, and every
    isolation fix here is static-verified only. Until then the two-tenant matrix
    cannot run and the schema is a design document rather than a fact.
-3. Then the tenant onboarding endpoint, so Tenant B can be created *through the
+   `0017`'s `REVOKE`/`GRANT` in particular is worth verifying first: confirm
+   `anon` genuinely cannot `EXECUTE` either RPC once applied.
+2. Then the tenant onboarding endpoint, so Tenant B can be created *through the
    flow* rather than seeded.
 
 **One judgment call left for a human:** `playbooks.py:135` and
@@ -263,7 +272,8 @@ deliberately unchanged rather than fixed on assumption.
 
 === PHASE 5 SPRINT COMPLETE ===
 
-Priority 1 finished, which was the sprint's stated non-negotiable. **Fourteen
-isolation gaps found, twelve fixed, eight of them cross-tenant writes** — and
-one, `playbooks.py`, would have let one agency's platform email another
-agency's customer. That single finding justifies the tier ordering on its own.
+Priority 1 finished, which was the sprint's stated non-negotiable. **Twenty-four
+isolation gaps found, twenty-two fixed, sixteen of them cross-tenant writes or
+deletes** — and one, `playbooks.py`, would have let one agency's platform email
+another agency's customer. That single finding justifies the tier ordering on
+its own.
