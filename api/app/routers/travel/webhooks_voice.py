@@ -52,8 +52,25 @@ def _webhook_url(request: Request) -> str:
 
 # ── T7: multi-tenant phone routing ───────────────────────────────────
 def _resolve_business_id(db, to_number: Optional[str]) -> Optional[str]:
-    """Resolve business_id from the dialed number (T7).
-    Falls back to PLIVO_BUSINESS_ID if table empty or number not found."""
+    """Resolve business_id from the dialed number (P4 T7).
+
+    The legacy PLIVO_BUSINESS_ID fallback is now confined to genuine
+    single-tenant mode — i.e. only when business_phone_numbers is EMPTY.
+
+    Why (Phase 5 isolation audit): the fallback previously applied whenever a
+    number failed to resolve, for any reason. In a multi-tenant deployment that
+    is a cross-tenant WRITE, not merely a misroute — an unregistered or
+    mistyped number belonging to Tenant B would be attributed to whichever
+    business PLIVO_BUSINESS_ID names, creating that call's travel_calls row and
+    its travel_leads row inside the WRONG tenant. Silent, and very hard to
+    unpick afterwards.
+
+    Once any tenant registers a number, the table is non-empty and this
+    function fails closed: an unrecognised number resolves to None, the caller
+    answers without tenant context, and no row is written anywhere. That is the
+    correct multi-tenant behaviour and it switches on automatically — nobody
+    has to remember to turn the fallback off.
+    """
     if to_number:
         rows = (
             db.table("business_phone_numbers").select("business_id")
@@ -62,10 +79,37 @@ def _resolve_business_id(db, to_number: Optional[str]) -> Optional[str]:
         )
         if rows:
             return rows[0]["business_id"]
-    # Fallback to legacy single-tenant config (deprecated once T7 fully wired)
-    if settings.PLIVO_BUSINESS_ID:
-        return settings.PLIVO_BUSINESS_ID
-    return None
+
+    if not settings.PLIVO_BUSINESS_ID:
+        return None
+
+    # Only fall back while NO number is registered at all (single-tenant mode).
+    try:
+        any_registered = (
+            db.table("business_phone_numbers").select("business_id")
+            .limit(1).execute().data
+        )
+    except Exception:
+        # Cannot prove we are single-tenant, so do not risk attributing the
+        # call to an arbitrary tenant. Fail closed.
+        logger.exception("phone-number registry lookup failed for to=%s", to_number)
+        return None
+
+    if any_registered:
+        logger.error(
+            "Unresolved dialed number %s and business_phone_numbers is NOT empty — "
+            "refusing to fall back to PLIVO_BUSINESS_ID, which would attribute this "
+            "call to the wrong tenant. Register this number to route it.",
+            to_number,
+        )
+        return None
+
+    logger.warning(
+        "Single-tenant fallback: no numbers registered, attributing to "
+        "PLIVO_BUSINESS_ID. Register numbers in business_phone_numbers before "
+        "onboarding a second tenant.",
+    )
+    return settings.PLIVO_BUSINESS_ID
 
 
 # ── T9: load ai_config for live calls ────────────────────────────────
