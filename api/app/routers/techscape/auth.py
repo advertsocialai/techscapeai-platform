@@ -27,6 +27,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.config import settings
+from app.core.public_rate_limit import enforce as rate_limit
 from app.core.security import (
     blacklist_jti, decode_access_token, decode_refresh_token,
     hash_password, issue_access_token, issue_refresh_token,
@@ -168,6 +169,8 @@ def register_business(payload: RegisterBusinessIn, request: Request):
 
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, request: Request):
+    # RISK-1: credential stuffing. 10/min per IP, 5/min per target account.
+    rate_limit(request, bucket="login", limit=10, window_sec=60, email=str(payload.email))
     svc  = BusinessService()
     user = svc.authenticate(email=str(payload.email), password=payload.password)
     if not user:
@@ -257,7 +260,9 @@ def rotate_api_key(principal: dict = Depends(require_business)):
 
 
 @router.post("/password/forgot")
-def password_forgot(payload: PasswordForgotIn):
+def password_forgot(payload: PasswordForgotIn, request: Request):
+    # RISK-1: email bombing via reset mails. 6/5min per IP, 3/5min per inbox.
+    rate_limit(request, bucket="pw-forgot", limit=6, window_sec=300, email=str(payload.email))
     svc = BusinessService()
     user = svc.find_user_by_email(str(payload.email))
     token = _issue_reset_token(user["id"]) if user else None
@@ -337,7 +342,9 @@ class OtpVerifyIn(BaseModel):
 
 
 @router.post("/otp/send")
-def otp_send(payload: OtpSendIn):
+def otp_send(payload: OtpSendIn, request: Request):
+    # RISK-1: email bombing. 6/5min per IP, 3/5min per inbox.
+    rate_limit(request, bucket="otp-send", limit=6, window_sec=300, email=str(payload.email))
     code = _issue_otp(str(payload.email))
 
     if settings.RESEND_API_KEY:
@@ -363,7 +370,9 @@ def otp_send(payload: OtpSendIn):
 
 
 @router.post("/otp/verify")
-def otp_verify(payload: OtpVerifyIn):
+def otp_verify(payload: OtpVerifyIn, request: Request):
+    # RISK-1: 6-digit code = 1e6 space; uncapped guessing beats it in hours.
+    rate_limit(request, bucket="otp-verify", limit=10, window_sec=300, email=str(payload.email))
     valid = _verify_otp(str(payload.email), payload.code)
     if not valid:
         raise HTTPException(

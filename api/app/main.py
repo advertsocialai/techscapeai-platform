@@ -12,6 +12,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core import error_tracking
 from app.routers import api_router
 from app.routers.travel import calls_ws_router
 
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle — startup launches the optional webhook worker."""
+    error_tracking.init()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION} [{settings.ENVIRONMENT}]")
     stop_event: asyncio.Event = asyncio.Event()
     worker_task: asyncio.Task | None = None
@@ -88,6 +90,9 @@ app.include_router(calls_ws_router)
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    # Observability: one stable capture point for every unhandled exception.
+    # Stub transport without SENTRY_DSN — logged + counted, nothing leaves.
+    error_tracking.capture_exception(exc, context={"path": str(request.url.path)})
     return JSONResponse(
         status_code=500,
         content={"detail": "An internal server error occurred. Please try again."},

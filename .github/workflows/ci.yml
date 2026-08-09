@@ -1,8 +1,9 @@
 name: CI/CD Pipeline
 
 on:
+  workflow_dispatch:  # manual runs once Actions billing is restored
   push:
-    branches: [main, develop]
+    branches: [main, develop, Klara-ai]
   pull_request:
     branches: [main]
 
@@ -48,6 +49,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Unit tests
+        run: npm test
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
 

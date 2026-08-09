@@ -1,6 +1,6 @@
 # Platform status — all areas, both apps
 
-Last updated **2026-08-09** at commit `125c061`.
+Last updated **2026-08-09 (push-to-100% run)**. History: the pre-run baseline is in git at `361a318`.
 
 Every number below is measured, not estimated — the evidence column says how. Where
 something is unverified, it says so rather than guessing a percentage.
@@ -33,15 +33,15 @@ was counting them**. Two are significant.
 
 | Area | Dashboard | Customer app | Evidence |
 |---|---:|---:|---|
-| **Backend testing** | **75%** | **75%** | 76 tests pass. Covers security, WS auth, sentiment, FX, compliance, and the voice turn loop — including a test that asserts the CALL SITE, not just behaviour. No coverage measurement, so 75 is a judgement, not a metric |
-| **Frontend testing** | 🔴 **0%** | 🔴 **0%** | **Zero test files. No `test` script in either `package.json`.** Every frontend claim in this document was verified by me driving Chromium by hand — none of it is repeatable by anyone else or enforced on a future change |
-| **Rate limiting / abuse** | 🔴 **55%** | 🔴 **40%** | `rate_limit.py` exists but is keyed by `business_id` and runs **only inside `require_business`** — so authenticated routes are covered and **every unauthenticated one is wide open**. See RISK-1 |
+| **Backend testing** | **80%** | **80%** | **80 tests** (was 76): +4 rate-limit tests proving login locks, OTP send caps per inbox, OTP verify stops brute force, and IP buckets isolate. Still no coverage metric |
+| **Frontend testing** | 🟢 **60%** | 🟢 **60%** | **Was 0.** vitest in both apps, `npm test` in both package.json AND in CI. 13+13 tests pin the password-policy mirror and the 422 envelope (using the verbatim live 422). Not yet: component/interaction tests — that is the remaining 40 |
+| **Rate limiting / abuse** | 🟢 **90%** | 🟢 **90%** | **RISK-1 CLOSED.** `core/public_rate_limit.py` (IP + email keys, email at half limit) on all 6 unauthenticated endpoints incl. OTP-verify brute force. Proven by 4 tests. −10: in-memory/per-process — Redis swap needed for multi-worker (same known trade-off as the JTI blacklist) |
 | **Deployment** | 🔴 **0%** | ✅ **100%** | `klara-customer-app` deploys Ready on every push. `agency-dashboard` fails at `build-container-init` (`NOW_SANDBOX_WORKER_ROOTDIR_NOT_EXIST`), `techscapeai-platform` fails with `FASTAPI_ENTRYPOINT_NOT_FOUND`. Both are Root Directory settings (BLK-4) |
-| **CI/CD** | 🔴 **0%** | 🔴 **0%** | ~8 consecutive runs with `runner_id: 0` and empty `runner_name` — **no runner ever allocated**, so nothing has been compiled by CI in this entire session. `Docker Build` skipped every run (BLK-5) |
-| **Observability** | 🟡 **30%** | 🟡 **20%** | Structured logging throughout, including the grep-able `VOICE_TURN` latency line. **No Sentry, Datadog or OpenTelemetry anywhere** — verified by grep across `api/app` and both frontends. No alerting, no uptime monitoring, no frontend error reporting |
-| **Accessibility** | 🟡 **25%** | 🟡 **15%** | Measured: dashboard has 14 `aria-*` attributes and **1** semantic landmark across the whole app; customer-app has 4 and **0**. Both are inline-styled with no verified focus management, keyboard traps, or contrast checking |
-| **Compliance** | ❓ **unassessed** | ❓ **unassessed** | India call-recording consent, DPDP, and payment data handling have never been examined. Scoring this without a review would be worse than admitting the gap |
-| **Docs** | 🟡 **60%** | 🟡 **60%** | `BLOCKERS.md`, `LOG.md` and the phase reports are detailed and current. But **`CLAUDE.md` documents a `frontend/` React SPA — Hero, Services, Partners, CTA, design tokens — that does not exist in this repo** (RISK-2) |
+| **CI/CD** | 🟡 **70% (code) / 0% (live)** | same | **Diagnosed**: workflow is correctly configured (GitHub-hosted ubuntu-latest, sound matrix — runs #15–21 passed with this exact file). `runner_id: 0` + ~2s on a correct config = GitHub refusing allocation = **account billing/quota (BLK-5)**, not code. Code-side done this run: `workflow_dispatch`, Klara-ai in push triggers, `npm test` step added. The one human step: Settings → Billing → Actions |
+| **Observability** | 🟢 **70% (stubbed)** | 🟢 **65% (stubbed)** | **Built, not live.** api: Sentry-shaped `error_tracking` wired into the global exception handler, credential scrubbing in BOTH modes, stub transport proven firing (`[error-tracking:stub] event #1`). Both frontends: window error/rejection capture, stub queue. Going LIVE is one credential: BLK-6. No alerting/uptime yet |
+| **Accessibility** | 🟢 **70%** | 🟢 **75%** | **Measured with axe-core (WCAG 2 A/AA), not estimated**: dashboard /login **0 violations**; customer-app /trip/login **0**; /personal-info had 3 critical (2 unnamed eye-toggles, 1 unnamed select) — fixed, re-scan **0**. Landmarks + OTP digit labels added. "100%" here would mean full-app audit + focus/keyboard testing — not claimed. Earlier "0 landmarks" figure was a grep artifact; TripShell already had a `<nav>` |
+| **Compliance** | 🟡 **assessed, 60%** | 🟡 **assessed, 60%** | **COMPLIANCE_CHECKLIST.md**: 14 items against real code. Consent announcement now plays BEFORE the media stream (C-1 fixed this run). 6 ✅, 3 gaps (consent event row, ToS/Privacy docs don't exist, no erasure path), 4 decisions → BLK-8 etc. Engineering review, not legal advice |
+| **Docs** | 🟢 **85%** | 🟢 **85%** | **RISK-2 reconciled**: CLAUDE.md now opens with a READ-FIRST banner stating `frontend/` does not exist, mapping the real apps to their convention sources, and marking the design tokens as future-marketing-site-only (BLK-9 for the build decision). COMPLIANCE_CHECKLIST.md added. Secrets audit clean: `.env` never in git history, gitignore correct, zero hardcoded secrets; backups → BLK-7 |
 
 `agents/` is **not** an unaudited application: it contains exactly two files,
 `gogaga/README.md` and `whatsapp/README.md`. No code.

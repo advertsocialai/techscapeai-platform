@@ -1,3 +1,29 @@
+# ⚠️ READ FIRST — this file describes an app that is NOT in this repo
+
+**There is no `frontend/` directory here.** Everything below this banner is the
+design system for a PLANNED marketing site that was never built in this
+repository (verified 2026-08-09: repo contains `agency-dashboard/`, `agents/`,
+`api/`, `customer-app/`, `database/`, `supabase/` — see RISK-2 in
+PLATFORM_STATUS.md). Building it is new scope needing Gowtham's requirements
+(BLK-9); do not create it speculatively, and do not go looking for these
+components — they do not exist.
+
+**The real applications, and where their conventions live:**
+
+| App | Directory | Conventions |
+|---|---|---|
+| Agency dashboard | `agency-dashboard/` | `.claude/skills/gogaga-frontend/` |
+| Klara customer app | `customer-app/` | `.claude/skills/gogaga-frontend/` |
+| FastAPI backend | `api/` | `.claude/skills/gogaga-backend/` |
+| Migrations | `supabase/migrations/` | `.claude/skills/gogaga-migrations/` |
+
+The design tokens below (blue #3D75F3, salmon #F5A086, Inter, `.wrap`, …) apply
+to the FUTURE marketing site only. The real apps use their own token files
+(`customer-app/src/styles/tokens.ts`, `agency-dashboard/src` CSS variables) —
+do not import these values into them.
+
+---
+
 # TechScape AI — Design System Rules (Figma ↔ Code)
 
 ## 1. Project Structure

@@ -169,7 +169,7 @@ export default function PersonalInfoPage() {
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>Phone Number</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <select value={countryCode} onChange={e => setCountryCode(e.target.value)} style={{
+              <select aria-label="Country code" value={countryCode} onChange={e => setCountryCode(e.target.value)} style={{
                 height: 50, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.11)',
                 borderRadius: 13, padding: '0 12px', fontSize: 13, color: 'rgba(255,255,255,0.7)',
                 outline: 'none', cursor: 'pointer', flexShrink: 0,
@@ -195,7 +195,7 @@ export default function PersonalInfoPage() {
                 onChange={e => { setPassword(e.target.value); setErrors(p => ({...p, password:''})) }}
                 placeholder="Create a strong password"
                 style={{ ...inputStyle(!!password), borderColor: errors.password ? 'rgba(248,113,113,0.5)' : (password ? 'rgba(59,143,232,0.35)' : 'rgba(255,255,255,0.11)'), fontSize: showPw ? 14 : 16, letterSpacing: showPw ? 0 : 3 }} />
-              <button onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex' }}>
+              <button aria-label={showPw ? "Hide password" : "Show password"} onClick={() => setShowPw(!showPw)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex' }}>
                 <EyeIcon open={showPw} />
               </button>
             </div>
@@ -216,7 +216,7 @@ export default function PersonalInfoPage() {
                 onChange={e => { setConfirmPassword(e.target.value); setErrors(p => ({...p, confirmPassword:''})) }}
                 placeholder="Re-enter password"
                 style={{ ...inputStyle(!!confirmPassword), borderColor: errors.confirmPassword ? 'rgba(248,113,113,0.5)' : (confirmPassword ? 'rgba(59,143,232,0.35)' : 'rgba(255,255,255,0.11)'), fontSize: showCpw ? 14 : 16, letterSpacing: showCpw ? 0 : 3 }} />
-              <button onClick={() => setShowCpw(!showCpw)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex' }}>
+              <button aria-label={showCpw ? "Hide confirmed password" : "Show confirmed password"} onClick={() => setShowCpw(!showCpw)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex' }}>
                 <EyeIcon open={showCpw} />
               </button>
             </div>

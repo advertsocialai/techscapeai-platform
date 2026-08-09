@@ -136,6 +136,7 @@ export default function TravellerLoginPage() {
             <>
               <input
                 type="email"
+                aria-label="Email address on your booking"
                 inputMode="email"
                 autoComplete="email"
                 value={email}
@@ -172,6 +173,7 @@ export default function TravellerLoginPage() {
                 // inputMode numeric + one-time-code so mobile keyboards show
                 // digits and iOS/Android can autofill the SMS/email code.
                 inputMode="numeric"
+                aria-label="6-digit code from your email"
                 autoComplete="one-time-code"
                 value={code}
                 onChange={(e) => {

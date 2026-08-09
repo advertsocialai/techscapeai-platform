@@ -26,7 +26,10 @@ export function errorMessage(err: unknown): string {
     const first = detail.find(
       (d): d is { msg: string } => !!d && typeof (d as { msg?: unknown }).msg === 'string',
     )
-    if (first) return first.msg
+    // Pydantic prefixes custom-validator messages with "Value error, " — an
+    // implementation detail the user cannot act on. (Ported from customer-app
+    // so both apps report identical text for identical backend failures.)
+    if (first) return first.msg.replace(/^Value error,\s*/i, '')
   }
 
   const status = res?.status
@@ -36,6 +39,10 @@ export function errorMessage(err: unknown): string {
   if (status === 409) return 'That conflicts with something that already exists.'
   if (status === 429) return 'Too many requests. Wait a moment and try again.'
   if (status && status >= 500) return 'The server had a problem. This is usually temporary.'
+
+  // No response object at all → the request never reached the server. Saying
+  // so beats implying the user did something wrong. (Ported from customer-app.)
+  if (!res) return 'Could not reach the server. Check your connection and try again.'
 
   const message = (err as { message?: string })?.message
   if (message && !/^Request failed with status code/.test(message)) return message

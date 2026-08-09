@@ -89,11 +89,24 @@ def speak_xml(text: str, *, voice: str = "WOMAN", language: str = "en-US") -> st
     )
 
 
-def stream_xml(*, stream_url: str) -> str:
-    """<Stream bidirectional="true"> — hands the call audio to our WS media endpoint."""
+# India call-recording disclosure. COMPLIANCE_CHECKLIST.md C-1: calls are
+# transcribed and (once Plivo creds exist) recorded, and NOTHING in the flow
+# disclosed that. TRAI/DoT practice and the DPDP notice principle both require
+# the caller to be told before processing starts, so the announcement plays
+# BEFORE the stream opens — a caller who hangs up on hearing it is never
+# transcribed at all. Wording is deliberately plain; legal review of the exact
+# text is Gowtham's (BLK-8) — its PRESENCE is not optional.
+CONSENT_ANNOUNCEMENT = (
+    "This call may be recorded and transcribed for quality and service purposes."
+)
+
+
+def stream_xml(*, stream_url: str, announce_consent: bool = True) -> str:
+    """<Speak> disclosure, then <Stream bidirectional> to our WS media endpoint."""
+    speak = f"<Speak>{escape(CONSENT_ANNOUNCEMENT)}</Speak>" if announce_consent else ""
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
-        f'<Response><Stream bidirectional="true" keepCallAlive="true">{escape(stream_url)}</Stream></Response>'
+        f'<Response>{speak}<Stream bidirectional="true" keepCallAlive="true">{escape(stream_url)}</Stream></Response>'
     )
 
 

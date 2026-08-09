@@ -58,7 +58,9 @@ export default function TripShell() {
           </div>
         )}
 
-        <Outlet />
+        <main>
+          <Outlet />
+        </main>
       </div>
 
       <nav

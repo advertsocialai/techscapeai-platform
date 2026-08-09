@@ -52,10 +52,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 
 from app.core.deps import get_current_traveller
+from app.core.public_rate_limit import enforce as rate_limit
 from app.core.security import issue_traveller_token
 from app.database import get_supabase_admin
 
@@ -190,9 +191,13 @@ def _current_booking(db, customer_id: str, business_id: str) -> Optional[dict[st
 
 # ── Auth ──────────────────────────────────────────────────────────────────
 @router.post("/auth/request-otp", status_code=status.HTTP_202_ACCEPTED)
-def request_otp(payload: RequestOtpIn) -> dict[str, Any]:
+def request_otp(payload: RequestOtpIn, request: Request) -> dict[str, Any]:
     """
     ALWAYS returns 202, whether or not the address belongs to a traveller.
+
+    RISK-1: this endpoint sends email and is reachable by anyone — added with
+    NO rate limit on 2026-08-09 and fixed the same day. 6/5min per IP,
+    3/5min per target inbox.
 
     This is an enumeration guard, not sloppiness: a 404 here would turn the
     endpoint into an oracle for "is this person a customer of this agency?",
@@ -203,6 +208,8 @@ def request_otp(payload: RequestOtpIn) -> dict[str, Any]:
     # router's private OTP helpers, and importing them at import-time creates a
     # cycle (that router imports from core, which this module also touches).
     from app.routers.techscape.auth import _issue_otp
+
+    rate_limit(request, bucket="trav-otp-send", limit=6, window_sec=300, email=str(payload.email))
 
     db = get_supabase_admin()
     profile = _profile_by_email(db, str(payload.email))
@@ -223,8 +230,11 @@ def request_otp(payload: RequestOtpIn) -> dict[str, Any]:
 
 
 @router.post("/auth/verify-otp", response_model=TravellerTokenOut)
-def verify_otp(payload: VerifyOtpIn) -> TravellerTokenOut:
+def verify_otp(payload: VerifyOtpIn, request: Request) -> TravellerTokenOut:
     from app.routers.techscape.auth import _verify_otp
+
+    # OTP brute force: 10 guesses per 5 min per inbox ends the 1e6-space attack.
+    rate_limit(request, bucket="trav-otp-verify", limit=10, window_sec=300, email=str(payload.email))
     from app.core.security import TRAVELLER_TOKEN_TTL_MIN
 
     if not _verify_otp(str(payload.email), payload.code):

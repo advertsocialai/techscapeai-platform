@@ -206,6 +206,7 @@ export default function OtpPage() {
                 <span style={{ pointerEvents: 'none' }}>{digit}</span>
                 <input
                   ref={el => { inputRefs.current[idx] = el }}
+              aria-label={`OTP digit ${idx + 1} of 6`}
                   type="tel"
                   maxLength={1}
                   value=""
