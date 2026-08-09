@@ -50,7 +50,7 @@ was counting them**. Two are significant.
 
 ## Risks found while compiling this
 
-### RISK-1 — 🔴 Unauthenticated endpoints have no rate limiting
+### RISK-1 — ✅ CLOSED 2026-08-09 (as-found record below): unauthenticated endpoints had no rate limiting
 
 The limiter is applied at `routers/techscape/_deps.py:111`, inside
 `require_business`, keyed by `business_id`. Anything that does not carry a business
@@ -64,11 +64,9 @@ rate-limiting references.
 | `POST /auth/password/forgot` | email bombing |
 | `POST /travel/v1/me/auth/request-otp` | email bombing — **added 2026-08-09, inherits the same gap** |
 
-The last row is mine. I built a public, unauthenticated endpoint that sends email
-and did not rate-limit it. It needs a limiter keyed by IP + email rather than
-`business_id`, since by definition there is no business context at that point.
+The last row was mine — built that same day without a limiter. **Closed the same run**: `core/public_rate_limit.py` keys by IP + email (no business context exists at these call sites) and covers all six endpoints, proven by 4 tests.
 
-### RISK-2 — 🟡 `CLAUDE.md` describes an application that does not exist
+### RISK-2 — ✅ RECONCILED 2026-08-09 (as-found record below): `CLAUDE.md` described an application that does not exist
 
 The repo's own instruction file specifies `frontend/` in detail — component list,
 routes, design tokens, Tailwind v4 conventions. There is no `frontend/` directory:
