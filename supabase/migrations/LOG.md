@@ -24,3 +24,78 @@ Append one line per applied migration. Never delete lines.
 <!-- Phase 2.5 agent appends: payment_links, follow_ups -->
 <!-- Phase 2.5: payment_links, follow_ups (ai_config landed early as 0006, see above) -->
 <!-- Phase 4: report_schedules -->
+
+## 2026-08-09 — FIRST ACTUAL APPLICATION to the live database
+
+Every row above this line described what a migration *does*. None of them had
+ever been run against a real database — the rows saying "NOT APPLIED — no live
+DB in this sandbox" were literally true, and the ones that said nothing were
+silently in the same state. Verified before starting: the live project
+(`xhrrkwojitchaaghohvr`, "Techscape AI") reported **5** applied migrations, all
+of them the old techscape workflow schema, and **not one `travel_*` table
+existed**. The FastAPI app's 37 table references and 193 endpoints were sitting
+on top of a schema that was not there.
+
+Applied in order, each via Supabase `apply_migration` so the applied state is
+now **tracked** in `supabase_migrations.schema_migrations` — which is what
+makes "is production at 0019?" answerable for the first time.
+
+| Date | File | What | Rollback-able | Applied by |
+|---|---|---|---|---|
+| 2026-08-09 | database/travel_schema.sql (as `0000_travel_base_schema`) | 12 base travel tables + pg_trgm/vector extensions + RLS + REVOKE. `CREATE TRIGGER` has no `IF NOT EXISTS` in Postgres, so each was preceded by `DROP TRIGGER IF EXISTS` (the pattern 0006/0010/0013/0016 already use) to make a retry safe | YES | Claude Code |
+| 2026-08-09 | 0002_branches_and_user_branch_scoping.sql | branches + ts_users.branch_id + CHECK widening | YES | Claude Code |
+| 2026-08-09 | 0003_calls_transcripts_and_leads_assignment.sql | travel_calls, travel_transcripts, travel_leads columns | YES | Claude Code |
+| 2026-08-09 | 0004_wiki_embeddings_384dim.sql | embeddings 1536→384 + match_travel_wiki | YES | Claude Code |
+| 2026-08-09 | 0005_phase3_takeover_events_summary.sql | travel_call_events + takeover columns | YES | Claude Code |
+| 2026-08-09 | 0006_ai_config.sql | travel_ai_config | YES | Claude Code |
+| 2026-08-09 | 0007_business_phone_numbers.sql | business_phone_numbers | YES | Claude Code |
+| 2026-08-09 | 0008_match_transcripts_rpc.sql | match_travel_transcripts | YES | Claude Code |
+| 2026-08-09 | 0009_packages_extension.sql | travel_packages: category/currency/branch_id/nights | YES | Claude Code |
+| 2026-08-09 | 0010_payment_links.sql | payment_links | YES | Claude Code |
+| 2026-08-09 | 0011_whatsapp_outbox.sql | whatsapp_outbox | YES | Claude Code |
+| 2026-08-09 | 0012_report_schedules.sql | report_schedules | YES | Claude Code |
+| 2026-08-09 | 0013_follow_ups.sql | follow_up_rules + follow_ups | YES | Claude Code |
+| 2026-08-09 | 0014_activity_log.sql | activity_log | YES | Claude Code |
+| 2026-08-09 | 0015_currency_and_fx.sql | branches.currency + fx_rate_snapshots + fx_rate_at() | YES | Claude Code |
+| 2026-08-09 | 0016_usage_metrics.sql | usage_metrics | YES | Claude Code |
+| 2026-08-09 | 0017_rpc_tenant_isolation.sql | RPC EXECUTE revoked from PUBLIC/anon/authenticated | YES | Claude Code |
+| **NOT APPLIED** | **0018_tenant_b_fixture.sql** | **Seeds a synthetic tenant + 4 login accounts. This is TEST DATA, not schema — deliberately held back from a database holding real businesses and users. Needs an explicit decision.** | YES | — |
+| 2026-08-09 | 0019_tenant_billing.sql | tenant_billing_accounts + usage_invoices + freeze trigger | YES | Claude Code |
+
+### Pre-flight checks that gated this (none were assumed)
+
+* Scanned all 18 files for destructive operations: **no `DROP TABLE`, no
+  `ALTER TYPE`, no `DELETE`, no `TRUNCATE`**. The only `DROP`s are
+  `DROP TRIGGER IF EXISTS` guards on triggers the same migration creates.
+* `0002` is the only migration touching a live table. Its two CHECK rewrites are
+  strict supersets, but that was **verified against the live rows** rather than
+  reasoned about: all 12 `ts_users` were `role='admin'`, `status='active'`, both
+  inside the new lists.
+* `pgvector` was **not installed** (`installed_version: null`); the base schema's
+  `CREATE EXTENSION IF NOT EXISTS vector` supplied it.
+* `public.set_updated_at()` confirmed to exist before applying anything that
+  attaches a trigger to it.
+
+### Verification after applying (law 7)
+
+* **44 tables, 44 with RLS enabled, 0 without.**
+* **All 37 tables the API code queries now exist** — diffed
+  `grep -rhoE '\.table\("[a-z_]+"' api/app` against `information_schema.tables`;
+  the missing-set is empty. All 5 functions present (`match_travel_wiki`,
+  `match_travel_transcripts`, `fx_rate_at`, `set_updated_at`,
+  `freeze_issued_invoice`).
+* **RLS proven, not assumed** — probed as `SET ROLE anon` against
+  travel_leads, travel_calls, travel_transcripts, payment_links, usage_invoices,
+  activity_log, branches, travel_ai_config: every one returned
+  `BLOCKED (permission denied)`.
+* **Live data intact**: ts_users still 12 rows, ts_businesses 13, ts_audit_logs 38.
+
+### Pre-existing finding, NOT introduced here and NOT changed
+
+`contact_submissions`, `gogaga_leads` and `gogaga_sessions` grant full
+`SELECT/INSERT/UPDATE/DELETE` to `anon` and `authenticated` (42 grants). Every
+one of the 29 tables created today has **zero** such grants. These three predate
+this work and were left alone deliberately: the public marketing site plausibly
+posts contact forms and captures leads through them, so revoking would be a
+functional change disguised as a security fix. RLS is enabled on all three, so
+row access is still policy-gated. Flagging for a decision rather than acting.
