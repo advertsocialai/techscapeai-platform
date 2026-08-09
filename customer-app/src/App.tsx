@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { OnboardingProvider } from './features/onboarding/context/OnboardingContext'
 import RequireStep from './features/onboarding/RequireStep'
+import RequireTraveller from './features/trip/RequireTraveller'
 
 // Onboarding — screens 1-6
 import LoginPage from './features/onboarding/pages/LoginPage'
@@ -58,11 +59,13 @@ export default function App() {
             />
             <Route path="/onboarding/success" element={<SuccessPage />} />
 
-            {/* Traveller surface. No auth guard: there is no traveller identity
-                to guard with (B-FE7-02), and a guard that checks an AGENCY token
-                would be the wrong check dressed up as security. The screens show
-                fixtures only, so there is nothing here to protect. */}
-            <Route path="/trip" element={<TripShell />}>
+            {/* Traveller surface. GUARDED as of the switch to real data: a
+                traveller identity now exists (POST /travel/v1/me/auth/verify-otp
+                issues a traveller-only token), and these screens render a real
+                customer's booking rather than fixtures. The guard is the first
+                line only — every /me endpoint independently requires that token
+                and scopes by customer_id AND business_id. */}
+            <Route path="/trip" element={<RequireTraveller><TripShell /></RequireTraveller>}>
               <Route index element={<TripPage />} />
               <Route path="payments" element={<PaymentsPage />} />
               <Route path="messages" element={<MessagesPage />} />

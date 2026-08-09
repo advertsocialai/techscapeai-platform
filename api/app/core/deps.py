@@ -31,7 +31,11 @@ from typing import Optional
 import jwt
 from fastapi import Depends, Header, HTTPException, WebSocket, WebSocketException, status
 
-from app.core.security import decode_access_token, is_jti_blacklisted
+from app.core.security import (
+    TRAVELLER_TOKEN_TYPE,
+    decode_access_token,
+    is_jti_blacklisted,
+)
 from app.services.techscape import BusinessService
 
 _ROLE_RANK: dict[str, int] = {
@@ -162,3 +166,49 @@ def require_role(*roles: str):
         return user
 
     return _dep
+
+
+# ── Traveller authentication ──────────────────────────────────────────────
+# A TRAVELLER IS NOT A ts_users ROW. They are a travel_customer_profiles row:
+# no password, no role, no branch, and no access to anything except their own
+# booking. Keeping them out of ts_users is deliberate — putting travellers in
+# the agency user table would place them one join away from every Team screen,
+# access matrix and role check in the product.
+#
+# The two token families cannot cross (see security.issue_traveller_token):
+# get_current_user above already rejects any token whose type != "access", so
+# a traveller token reaches no agency endpoint; and this dependency requires
+# type == TRAVELLER_TOKEN_TYPE, so an agency token reaches no /me endpoint.
+def get_current_traveller(authorization: Optional[str] = Header(default=None)) -> dict:
+    """
+    Returns {"customer_id": ..., "business_id": ...} for a valid traveller token.
+
+    Every /me endpoint MUST scope its query by BOTH values. business_id alone is
+    not enough — that is the agency's scope, and using it by itself would show a
+    traveller every other customer's booking in the same agency. customer_id
+    alone is not enough either: ids are not secrets, and a stale token from a
+    deleted tenant must not resolve.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
+
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        claims = decode_access_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+    if claims.get("type") != TRAVELLER_TOKEN_TYPE:
+        # An agency access token lands here. Same 401, same wording — the
+        # response must not tell a caller which kind of token it needs.
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Wrong token type")
+    if is_jti_blacklisted(claims.get("jti")):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Token has been revoked")
+
+    customer_id, business_id = claims.get("sub"), claims.get("biz")
+    if not customer_id or not business_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+    return {"customer_id": customer_id, "business_id": business_id}

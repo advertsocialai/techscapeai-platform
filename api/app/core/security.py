@@ -72,6 +72,45 @@ def issue_access_token(*, sub: str, business_id: str, role: str = "user") -> str
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=JWT_ALG)
 
 
+# ── Traveller tokens ──────────────────────────────────────────────
+# A TRAVELLER IS NOT A USER. `sub` here is a travel_customer_profiles.id,
+# NOT a ts_users.id, and the two id spaces must never be confused.
+#
+# The separation is enforced by the `type` claim, and it works in BOTH
+# directions with no change to the agency code:
+#
+#   agency  -> traveller :  get_current_traveller requires type ==
+#                           "traveller_access", so an agency "access" token
+#                           is rejected.
+#   traveller -> agency  :  get_current_user already rejects anything whose
+#                           type != "access" (core/deps.py), so a traveller
+#                           token cannot reach a single agency endpoint.
+#
+# This is why the type claim is used rather than, say, a role value: a role
+# is data the agency path would happily read, whereas a wrong `type` is
+# refused before any lookup happens. Fail-closed on both sides.
+#
+# Deliberately SHORT-LIVED and NON-REFRESHABLE. A traveller session is a
+# person checking their own booking, not an operator working a shift, so
+# there is no traveller refresh token: when it expires they request a new
+# OTP. That keeps a leaked link cheap and means there is no long-lived
+# traveller credential anywhere to steal.
+TRAVELLER_TOKEN_TYPE = "traveller_access"
+TRAVELLER_TOKEN_TTL_MIN = 60
+
+
+def issue_traveller_token(*, customer_id: str, business_id: str) -> str:
+    payload = {
+        "sub":  customer_id,
+        "biz":  business_id,
+        "type": TRAVELLER_TOKEN_TYPE,
+        "iat":  _now(),
+        "exp":  _now() + timedelta(minutes=TRAVELLER_TOKEN_TTL_MIN),
+        "jti":  secrets.token_urlsafe(8),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm=JWT_ALG)
+
+
 def issue_refresh_token(*, sub: str, business_id: str) -> str:
     payload = {
         "sub":  sub,

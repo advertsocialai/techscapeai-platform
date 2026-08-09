@@ -1,48 +1,79 @@
 /**
- * Traveller-facing data layer — CURRENTLY ALL STUBBED.
+ * Traveller-facing data layer — NOW REAL.
  *
  * ─────────────────────────────────────────────────────────────────────────
- * READ THIS BEFORE USING ANY OF IT
+ * This file used to return hardcoded fixtures, because none of these
+ * endpoints existed (B-FE7-03). They exist now:
  *
- * Not one of these endpoints exists on the backend. Every function below
- * returns a hardcoded fixture. This module exists so the traveller screens can
- * be built and reviewed now, and so switching to real data later is a change to
- * THIS FILE ONLY — the screens never learn that they were stubbed.
+ *     POST /travel/v1/me/auth/request-otp
+ *     POST /travel/v1/me/auth/verify-otp
+ *     GET  /travel/v1/me/trip
+ *     GET  /travel/v1/me/payments
+ *     GET  /travel/v1/me/messages
  *
- * Two open questions make real implementation impossible today, and neither is
- * an engineering problem:
+ * The screens never learned they were stubbed, which was the whole point of
+ * routing everything through this one module — swapping to real data is a
+ * change to THIS FILE ONLY. The exported shapes are unchanged.
  *
- *   B-FE7-01 — is customer-app for TRAVELLERS or for AGENCIES self-serving?
- *     The existing onboarding flow collects business_name/industry and calls
- *     /auth/register-business, which is an agency signing up. These screens
- *     assume traveller. If that assumption is wrong, delete this file.
+ * A TRAVELLER TOKEN IS NOT AN AGENCY TOKEN
+ * ----------------------------------------
+ * It is stored under a DIFFERENT key (`klara_traveller_token`) and sent by a
+ * DIFFERENT axios instance than `lib/api.ts`. That separation is deliberate:
+ * the backend refuses each token family on the other's endpoints, and mixing
+ * them client-side would turn a clean 401 into a confusing one.
  *
- *   B-FE7-02 — the backend has NO TRAVELLER IDENTITY. Every ts_users row
- *     belongs to a business and every JWT carries business_id; a traveller is a
- *     travel_customers row with no password and no token. So there is currently
- *     nothing to authenticate a traveller against, and no scoping rule that
- *     would let one safely read their own booking.
- *
- * WHY STUB RATHER THAN CALL SOMETHING CLOSE: the agency endpoints DO hold this
- * data (travel_bookings, payment_links), but they are business-scoped. Pointing
- * a traveller screen at them would either 401, or — far worse, if a traveller
- * token were ever minted carelessly — return other customers' bookings. A
- * fixture cannot leak anything.
- *
- * WHEN THE BACKEND EXISTS: replace each body with its real call. The signatures
- * are deliberately shaped like the endpoints that ought to exist, and each one
- * names its expected route below.
+ * There is no traveller refresh token by design — the backend issues a
+ * short-lived (60 min) token and no refresh. When it expires the traveller
+ * requests a new OTP. So this module must NOT try to refresh; on 401 it clears
+ * the token and lets the screen ask for a code again.
  * ───────────────────────────────────────────────────────────────────────── */
+import axios from 'axios'
 
-/** Flipped to false once the real endpoints land. Screens branch on it to show
- *  the stub banner — nothing else should depend on it. */
-export const TRAVELLER_API_IS_STUBBED = true
+/** Kept exported so screens can keep branching on it; now false. */
+export const TRAVELLER_API_IS_STUBBED = false
 
-export const STUB_NOTICE =
-  'Sample data. These screens have no backend yet — traveller endpoints and traveller ' +
-  'authentication both remain to be built (B-FE7-01, B-FE7-02). Nothing here reflects a real booking.'
+export const STUB_NOTICE = ''
 
-/* ── Types (the shapes the real endpoints should return) ─────────────────── */
+const TOKEN_KEY = 'klara_traveller_token'
+
+export function getTravellerToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY)
+}
+export function setTravellerToken(t: string) {
+  localStorage.setItem(TOKEN_KEY, t)
+}
+export function clearTravellerToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+export function isTravellerAuthenticated(): boolean {
+  return !!getTravellerToken()
+}
+
+// Separate instance from lib/api.ts on purpose — different base path, and a
+// different token family that must never be attached to agency calls.
+const travellerHttp = axios.create({
+  baseURL: import.meta.env.VITE_TRAVEL_API_URL || '/api/travel/v1/me',
+  headers: { 'Content-Type': 'application/json' },
+})
+
+travellerHttp.interceptors.request.use((config) => {
+  const t = getTravellerToken()
+  if (t) config.headers.Authorization = `Bearer ${t}`
+  return config
+})
+
+travellerHttp.interceptors.response.use(
+  (r) => r,
+  (err) => {
+    // No refresh attempt: there is no traveller refresh token to attempt one
+    // with. Clearing here means the next render sees an unauthenticated
+    // traveller and asks for a code, rather than looping on a dead token.
+    if (err?.response?.status === 401) clearTravellerToken()
+    return Promise.reject(err)
+  },
+)
+
+/* ── Types (unchanged — the screens depend on these) ─────────────────────── */
 
 export interface TripDay {
   day: number
@@ -85,88 +116,38 @@ export interface TravellerMessage {
   at: string
 }
 
-/* ── Fixtures ────────────────────────────────────────────────────────────── */
-
-// Fixed values, not randomised: a screenshot taken today should match one taken
-// tomorrow, and a reviewer should be able to spot "this is the fixture" instantly.
-const TRIP: Trip = {
-  booking_ref: 'SAMPLE-GG-00000',
-  destination: 'Bali, Indonesia',
-  status: 'confirmed',
-  start_date: '2026-11-14',
-  end_date: '2026-11-21',
-  pax: 2,
-  agency_name: 'GoGaga Holidays',
-  agent_name: 'Sample Agent',
-  total_amount: '184000',
-  currency: 'INR',
-  amount_paid: '50000',
-  visa_state: 'pending',
-  itinerary: [
-    { day: 1, title: 'Arrive in Denpasar', detail: 'Airport pickup and transfer to Seminyak. Evening free.' },
-    { day: 2, title: 'Seminyak & Tanah Lot', detail: 'Beach morning, sunset at Tanah Lot temple.' },
-    { day: 3, title: 'Ubud day trip', detail: 'Rice terraces, monkey forest, art market.' },
-    { day: 4, title: 'Nusa Penida', detail: 'Fast boat, Kelingking Beach, snorkelling at Crystal Bay.' },
-    { day: 5, title: 'Free day', detail: 'Optional spa or cooking class.' },
-    { day: 6, title: 'Uluwatu', detail: 'Cliff temple and Kecak fire dance at sunset.' },
-    { day: 7, title: 'Departure', detail: 'Transfer to Denpasar airport.' },
-  ],
-}
-
-const PAYMENTS: TravellerPayment[] = [
-  {
-    id: 'sample-1',
-    description: 'Booking deposit',
-    amount: '50000',
-    currency: 'INR',
-    status: 'paid',
-    due_at: null,
-    pay_url: null,
-  },
-  {
-    id: 'sample-2',
-    description: 'Balance payment',
-    amount: '134000',
-    currency: 'INR',
-    status: 'sent',
-    due_at: '2026-10-14T00:00:00Z',
-    // Deliberately a stub:// URL — mirrors what the backend returns without
-    // Razorpay credentials, so the screen has to handle the un-openable case.
-    pay_url: 'stub://payment-link/sample-2',
-  },
-]
-
-const MESSAGES: TravellerMessage[] = [
-  { id: 'm1', from: 'agency', text: 'Hi! Your Bali itinerary is confirmed. Visa docs needed by 20 Oct.', at: '2026-08-06T09:12:00Z' },
-  { id: 'm2', from: 'you', text: 'Thanks! Can we add a day in Ubud?', at: '2026-08-06T10:04:00Z' },
-  { id: 'm3', from: 'agency', text: "Checking availability — I'll confirm by tomorrow.", at: '2026-08-06T10:31:00Z' },
-]
-
-/** Small delay so loading states are actually exercised in review, rather than
- *  resolving instantly and hiding a missing skeleton. */
-function settle<T>(value: T): Promise<T> {
-  return new Promise((resolve) => setTimeout(() => resolve(value), 350))
-}
+/* ── API ─────────────────────────────────────────────────────────────────── */
 
 export const travellerApi = {
-  /** Real route would be roughly: GET /travel/v1/me/trip */
-  trip: () => settle(TRIP),
+  /** Always resolves, even for an unknown address — the backend will not say
+   *  whether the email belongs to a customer, and neither should the UI. */
+  requestOtp: (email: string) =>
+    travellerHttp.post('/auth/request-otp', { email }).then((r) => r.data),
 
-  /** Real route: GET /travel/v1/me/payments */
-  payments: () => settle(PAYMENTS),
+  verifyOtp: async (email: string, code: string) => {
+    const { data } = await travellerHttp.post<{ access_token: string }>(
+      '/auth/verify-otp',
+      { email, code },
+    )
+    setTravellerToken(data.access_token)
+    return data
+  },
 
-  /** Real route: GET /travel/v1/me/messages */
-  messages: () => settle(MESSAGES),
+  trip: () => travellerHttp.get<Trip>('/trip').then((r) => r.data),
+
+  payments: () => travellerHttp.get<TravellerPayment[]>('/payments').then((r) => r.data),
+
+  messages: () => travellerHttp.get<TravellerMessage[]>('/messages').then((r) => r.data),
 
   /**
-   * Real route: POST /travel/v1/me/messages
+   * 💬 STILL NOT WIRED, and still throws rather than faking success.
    *
-   * 💬 Deliberately does NOT send anything, and says so rather than echoing a
-   * fake success. There is no traveller→agency inbound channel at all — the
-   * WhatsApp integration is outbound-only, which is also why the 24-hour
-   * session window is tracked in an in-process dict (DEBT-10). Pretending a
-   * message was delivered is exactly the failure this codebase keeps guarding
-   * against.
+   * This is not an oversight — there is no traveller→agency inbound channel on
+   * the backend, so there is deliberately no POST /me/messages to call. The
+   * WhatsApp integration is outbound-only. Accepting text here and letting it
+   * vanish would be worse than saying so: a customer who believes they reported
+   * a visa problem, and did not, is worse off than one who was told the channel
+   * is unavailable.
    */
   sendMessage: async (): Promise<never> => {
     throw new Error(
