@@ -99,3 +99,35 @@ this work and were left alone deliberately: the public marketing site plausibly
 posts contact forms and captures leads through them, so revoking would be a
 functional change disguised as a security fix. RLS is enabled on all three, so
 row access is still policy-gated. Flagging for a decision rather than acting.
+
+### 2026-08-09 (later) — 0020, and what end-to-end validation caught
+
+| Date | File | What | Rollback-able | Applied by |
+|---|---|---|---|---|
+| 2026-08-09 | 0020_fixture_emails_valid_tld.sql | Rewrites the tenant-B fixture's four login emails + the business contact_email from `.test` (RFC 2606 special-use, rejected outright by the backend's own `EmailStr`) to `@regression-fixture-tenant-b.example.com`. Without this the isolation fixture could not authenticate **by construction** | YES | Claude Code |
+
+Found by driving the dashboard end-to-end rather than by reading: a login POST
+returned 422 *"The part after the @-sign is a special-use or reserved name"*.
+The fixture whose only purpose is making the access matrix runnable could not
+clear step one of it.
+
+Domain choice was tested, not assumed — and the intuitive answer is wrong:
+
+| domain | verdict |
+|---|---|
+| `.test`, `.invalid`, `.localhost` | rejected |
+| `.example` | accepted |
+| `.example.com` | accepted |
+
+`.example` passes only because it is missing from email-validator's special-use
+list that already blocks its three RFC 2606 siblings — one library update from
+breaking again. `example.com` is IANA-reserved for documentation, so it is
+equally undeliverable but is an ordinary registered domain no validator
+special-cases.
+
+Verified after: all four accounts now `@…example.com`; zero `.test`/`.invalid`/
+`.localhost` addresses remain in `ts_users` or `ts_businesses`; and against the
+live API the old address still returns **422** while the new one reaches the DB
+layer (**500** on fixture credentials) — i.e. it now clears the validator.
+
+`0018` itself was left unedited: it is applied, and law 4 says fix forward.

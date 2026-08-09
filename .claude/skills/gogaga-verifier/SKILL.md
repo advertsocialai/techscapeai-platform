@@ -88,3 +88,56 @@ silent the moment Redis was provisioned).
 Each hit is a QUESTION — "who should be calling this?" — not a verdict. Every
 past instance here was a missing call, so the fix is almost always to WIRE IT
 UP, never to delete.
+
+---
+
+## ⚠️ Fixture usability — learned the hard way, 2026-08-09
+
+**The tenant-B fixture could not log in.** `0018` seeded four accounts at
+`@regression-fixture-tenant-b.test`. `LoginIn.email` is a Pydantic `EmailStr`,
+and email-validator rejects RFC 2606 special-use names:
+
+```
+422 -> "value is not a valid email address: The part after the @-sign is a
+        special-use or reserved name that cannot be used with email"
+```
+
+Every access-matrix run against tenant B would have died at authentication,
+before testing a single permission — and the failure would have looked like a
+broken RBAC layer rather than a bad address. Fixed in `0020`; the fixture now
+uses `@regression-fixture-tenant-b.example.com` (IANA-reserved for
+documentation, so still undeliverable, but accepted by every validator).
+
+**The rule this generalises to, and it applies to every fixture this skill
+touches:**
+
+> A row the database accepts can still be unusable by the application.
+> A fixture is not ready when the INSERT succeeds — it is ready when you have
+> **round-tripped it through the API**: minted a token for it, called one
+> endpoint as it, and got a 2xx.
+
+Do that once, before building a matrix on top of it. The alternative is an
+access matrix that fails uniformly for a reason that has nothing to do with
+access.
+
+### Before running the access matrix, confirm the fixture actually authenticates
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  "$API/api/techscape/v1/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"owner@regression-fixture-tenant-b.example.com","password":"<pw>"}'
+# 200 = usable · 422 = the ADDRESS is rejected, nothing to do with credentials
+#                401 = address fine, password wrong
+```
+
+**422 and 401 mean completely different things here.** A 422 is the address
+being refused by the validator; no password will ever fix it. Distinguishing
+them is the difference between a five-minute fix and hours spent debugging RBAC
+that was never broken.
+
+### Not every `.test` address is a bug — check whether it is validated
+
+`api/tests/test_ws_handshake_live.py` uses `agent@fixture.test` in `_USER_ROW`.
+That is a **mocked DB row**, never passed through `EmailStr`, so it is fine and
+must not be "fixed". Only addresses that cross a Pydantic request boundary are
+affected. Chasing the rest is a false positive.
