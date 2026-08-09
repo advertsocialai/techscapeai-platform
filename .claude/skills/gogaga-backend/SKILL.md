@@ -58,3 +58,70 @@ Read `references/api-contract.md` for the full 133-endpoint map. Headlines:
 - **P4**: WhatsApp/Razorpay/dashboard aggregates
 
 Never build ahead of the current phase gate.
+
+---
+
+## ⚠️ Reality check — verified against a running server 2026-08-09
+
+### Endpoint counts are stale
+
+| | Skill says | Actual (live OpenAPI) |
+|---|---|---|
+| Total | 133-endpoint map | **193 operations / 157 paths** |
+| techscape | ~80 | 89 |
+| travel | ~53 | **99** |
+
+The travel surface has nearly doubled. `references/api-contract.md` is
+correspondingly behind — **enumerate the live app rather than trusting it**:
+
+```bash
+cd api && DEBUG=true SUPABASE_URL=http://x.invalid SUPABASE_ANON_KEY=x \
+  SUPABASE_SERVICE_ROLE_KEY=x JWT_SECRET=y JWT_REFRESH_SECRET=z \
+  python -m uvicorn app.main:app --port 8000 &
+curl -s localhost:8000/openapi.json | python3 -c "import json,sys;print(len(json.load(sys.stdin)['paths']))"
+```
+
+### The failure mode that keeps costing this repo
+
+**A function that exists, is correct, and is never called.** It has landed at
+least four times and passed review every time — the code was fine, only the
+wiring was missing. Tests cannot catch it: nothing fails, the feature is simply
+absent.
+
+Run before declaring any phase done:
+```bash
+python3 .claude/skills/gogaga-verifier/scripts/find_dead_code.py --min-lines 8
+```
+
+Live examples: `run_turn()` (no voice turn loop — the AI never replies during a
+call), `synthesize_speech()` (TTS never plays), `log_voice_turn()` (no latency
+telemetry at all), `subscribe_call()` (the dashboard would have gone silent the
+moment Redis was provisioned).
+
+### Verify against the client that will actually call it
+
+The WS endpoint authenticated via an `Authorization` header and was verified
+only by a Python probe that could set one. **Browsers cannot** — so the live
+call feed was unusable from the dashboard, and the verification tool could never
+have caught it. Fixed via the `Sec-WebSocket-Protocol` channel
+(`get_current_user_ws`).
+
+Generalise: *a test that passes only through a path real clients cannot take is
+worse than no test.* It manufactures confidence.
+
+### Webhook signature verification FAILS OPEN
+
+`twilio_status`, `twilio_voice`, `sendgrid_events`, `wapi_status` all verify
+HMAC correctly **when a secret is set**, and accept any unsigned request when it
+is not:
+
+```python
+token = settings.TWILIO_WEBHOOK_AUTH_TOKEN or settings.TWILIO_AUTH_TOKEN
+if not token:
+    return True  # stub mode
+```
+
+Convenient in dev; **in production without those env vars, anyone who finds the
+URL can POST to them.** Note the asymmetry recorded as `DEBT-12`: payments were
+deliberately made fail-**closed**. If you unify these, move webhooks to
+fail-closed — never the reverse.

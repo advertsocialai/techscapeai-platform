@@ -43,3 +43,61 @@ Stub a provider 500 (env flag or monkeypatch): call must survive with retry-once
 - Never mark a voice task done on replay alone if the task is a 📞 gate.
 - Every new bug found on a real call → add a replay-based regression test here.
 - ENRICH THIS SKILL: after T6 passes, append the actual commands/scripts that worked under "## Learned during Phase 2".
+
+---
+
+## ⚠️ Reality check — verified against the code 2026-08-09
+
+Written as a starter before Phase 2 shipped. Several patterns above **cannot
+run today**, and the reasons matter more than the patterns do.
+
+### There is no voice turn loop — this is the headline
+
+`ai_engine.run_turn()` and `voice.synthesize_speech()` are both fully written
+and have **ZERO call sites** (`scripts/find_dead_code.py` in the
+`gogaga-verifier` skill reproduces this). The webhook does one batch STT at
+`stop`.
+
+Consequences for everything above:
+
+| Pattern | Status |
+|---|---|
+| Barge-in test sequence | **Untestable.** Requires mid-TTS playback; the AI never speaks. |
+| TTS loop-back check | **Untestable.** `synthesize_speech` is never invoked. |
+| Media stream replay | Works for STT and transcript persistence only. |
+| Failure injection (LLM/TTS) | Only the STT leg is reachable. |
+
+### `grep VOICE_TURN api.log` returns nothing. Always.
+
+`voice.log_voice_turn()` exists, formats the exact line
+`api-conventions.md` specifies — and is **never called**. So the entire
+latency-assertion workflow above (median/p95 per hop, the `total_ms > 1100`
+gate) has **no data to run against**.
+
+This is the sharpest instance of the repo's recurring defect: the
+instrumentation that Phase 2B's own gate depends on was written and never
+wired. **Wiring `log_voice_turn()` is a prerequisite for every latency claim in
+this skill**, not an afterthought.
+
+### `seq` is hardcoded to 1 — do not assert monotonicity
+
+The WS feed testing section says "transcript messages arrive with monotonic
+seq". They do not: `webhooks_voice.py` emits the literal `"seq": 1` on every
+frame, and no other message type carries `seq` at all. An assertion on
+monotonicity fails immediately; gap detection built on it would fire constantly
+and lie.
+
+### Use the browser auth channel when probing
+
+`ws_probe.py` now defaults to `--auth subprotocol`, matching what the dashboard
+actually sends. It previously used a header-only channel that **no browser can
+produce**, which is exactly why the WS endpoint stayed unusable from the
+dashboard without anyone noticing. If you add a probe, exercise the channel
+real clients use — a test that passes only via a path users cannot take is
+worse than no test.
+
+### What IS testable today
+
+STT accuracy via replay, transcript persistence, WS framing and auth, RBAC
+scoping on the feed, and webhook signature verification. That is a real and
+useful surface — just not the "live conversation" half.

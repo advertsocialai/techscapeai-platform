@@ -35,3 +35,59 @@ Rules for every schema change to the Supabase database. The database is producti
 
 ## Phase migration map (Option B — real repo)
 P1: ts_users role CHECK migration (add super_admin/agent; keep legacy valid) + branch linkage (branch_id → travel_franchisees OR new travel_branches per recon) · P2: travel_calls, travel_transcripts (+ extend travel_leads: phone, assigned_agent, embedding, language) · P2.5/P4: travel_payment_links, travel_ai_config; ladder rides on travel_playbook_runs (check before creating tables). Column specs: gogaga-backend/references/schema.md. File conventions to copy: IF NOT EXISTS, idx_/trg_ naming, set_updated_at() trigger, the REVOKE block.
+
+---
+
+## ⚠️ Reality check — verified against the repo 2026-08-09
+
+Four things above are contradicted by what is actually on disk. The laws
+themselves are sound; these are the details that will send you wrong.
+
+### Filenames are SEQUENTIAL, not timestamped
+
+Law 4 says `migrations/YYYYMMDDHHMM_short_name.sql`. **Every real file uses a
+zero-padded sequence**: `0001_contact_submissions.sql` …
+`0019_tenant_billing.sql`. Follow the repo, not the law — a timestamped file
+dropped into that directory sorts unpredictably against the existing nineteen.
+Next file is `0020_`.
+
+### The path is `supabase/migrations/`, not `migrations/`
+
+Both the file location and `LOG.md` live under `supabase/`.
+
+### Vector columns are `vector(384)`, not `vector(1536)`
+
+Migration `0004` resized **every** embedding column — `travel_wiki`,
+`travel_leads`, `travel_transcripts` — from 1536 to 384, because the embedder is
+local fastembed `BAAI/bge-small-en-v1.5` (ONNX, no API key, 384 dims). A new
+`vector(1536)` column will not work with `match_*` RPCs, which are typed to 384.
+
+**Single-embedder rule:** one model, one dimension, repo-wide. Mixing dimensions
+silently breaks similarity search rather than erroring.
+
+### APPLIED STATE IS NOT TRACKED — and 11 of 19 are unapplied
+
+`LOG.md` records what each migration *does*, and several rows say
+"**NOT APPLIED — no live DB in this sandbox**". Nothing reconciles that against
+a real database. There is no `schema_migrations` table, no `supabase db push`
+in CI, nothing that answers *"is production actually at 0019?"*
+
+Right now `0009`–`0019` have **never been run anywhere**. That means:
+
+- Every endpoint touching packages, payment links, WhatsApp outbox, report
+  schedules, follow-ups, activity log, FX, usage or tenant billing will fail on
+  a missing relation against a real DB.
+- The gap is invisible from the code — the routers are wired and return 500 only
+  once a query executes.
+
+**Before trusting any DB-backed feature, verify the live schema rather than the
+migration files:**
+
+```sql
+select table_name from information_schema.tables
+where table_schema = 'public' order by table_name;
+```
+
+Diff that against `CREATE TABLE` statements in `supabase/migrations/`. A
+migration file existing is not evidence that the table exists — this repo is
+currently the clearest possible proof of that.

@@ -24,3 +24,49 @@ Cost routing law (blueprint §7): **Claude** = live voice replies, sentiment, wh
 
 ## Latency discipline
 Voice replies: keep max_tokens low (~150), stream always, measure llm_ttft_ms. If TTFT median >375ms, shorten the system prompt before touching anything else.
+
+---
+
+## ⚠️ Reality check — verified against the code 2026-08-09
+
+Everything above was written as a **starter, before the code existed**. Four
+claims are now contradicted by what actually shipped. Trust this section over
+anything above it, and re-verify before trusting either.
+
+### Gemini does not exist
+
+The cost-routing law assigns WhatsApp replies, summaries, briefs and follow-up
+drafts to **Gemini Flash**. There are **zero references to Gemini anywhere in
+`api/`**. Everything routes to Claude, or to keyword stubs when no key is set.
+
+That makes the routing law **aspirational, not descriptive**. It is still the
+right design — the blueprint chose Gemini for cost, and pushing that volume
+through Claude is the expensive default — but do not read this skill and assume
+the split is implemented. It is not.
+
+### The sentiment rubric has THREE dimensions, not four
+
+`sentiment_service.score_text()` returns exactly:
+
+```
+excitement · intent · price_sensitivity
+```
+
+**`urgency` is not computed and never emitted.** A UI or report built against
+it renders 0 forever. Do not add it to a prompt or schema expecting it to flow
+through.
+
+### There is no `prompts.py`
+
+Rule 1 says prompts live in `references/` here plus "a single `prompts.py` (or
+ai_config rows) in code". **No `prompts.py` exists anywhere in `api/`.** The
+live path is `travel_ai_config` rows (see the `ai-config` router and the
+AI Playbook screen), which is the "or" branch — fine, but the rule reads as
+though a file exists when it does not.
+
+### Scores are constants without an API key
+
+With no `ANTHROPIC_API_KEY`, the post-call pipeline writes the **same
+`lead_score=40` and `sentiment_score=0.4` on every completed call**. Any prompt
+tuning aimed at improving these figures is unmeasurable until a key is set —
+you would be tuning against a constant. Set the key first, then tune.
