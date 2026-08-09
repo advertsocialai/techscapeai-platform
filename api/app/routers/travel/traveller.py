@@ -127,15 +127,44 @@ class TravellerMessageOut(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 def _profile_by_email(db, email: str) -> Optional[dict[str, Any]]:
+    """
+    Resolve an email to ONE customer profile.
+
+    travel_customer_profiles is UNIQUE(business_id, email), NOT unique on email
+    — so the same person booking with two agencies has two profiles, and a
+    lookup by email alone can match both. The first version of this took
+    `.limit(1)`, which meant an arbitrary agency won: the traveller would be
+    shown a real booking of their own, but potentially from the wrong agency,
+    varying between logins.
+
+    Not a cross-person leak (both rows are the same human), but wrong, and
+    non-deterministically wrong, which is worse to diagnose.
+
+    Resolution: oldest profile wins, so a given address always lands on the same
+    agency instead of flipping. Ambiguity is logged rather than hidden, because
+    the real fix is scoping the login to one agency — which needs a product
+    decision about how customer-app learns which agency it is serving
+    (subdomain, branding, deep link). Logged as B-FE7-08.
+    """
     res = (
         db.table("travel_customer_profiles")
-        .select("id, business_id, full_name, email, phone")
+        .select("id, business_id, full_name, email, phone, created_at")
         .eq("email", email)
-        .limit(1)
+        .order("created_at", desc=False)
         .execute()
     )
     rows = res.data or []
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    if len(rows) > 1:
+        logger.warning(
+            "traveller email %s matches %d profiles across businesses %s — "
+            "resolving to the oldest (B-FE7-08)",
+            email,
+            len(rows),
+            [r.get("business_id") for r in rows],
+        )
+    return rows[0]
 
 
 def _current_booking(db, customer_id: str, business_id: str) -> Optional[dict[str, Any]]:
@@ -291,7 +320,24 @@ def my_payments(traveller: dict = Depends(get_current_traveller)) -> list[Travel
     returned if BOTH its lead and itself belong to the token's tenant.
     """
     db = get_supabase_admin()
+    cols = "id, amount, currency, status, expiry_at, gateway_short_url, created_at"
 
+    # Direct attribution (payment_links.customer_id, migration 0021).
+    direct = (
+        db.table("payment_links")
+        .select(cols)
+        .eq("customer_id", traveller["customer_id"])
+        .eq("business_id", traveller["business_id"])
+        .order("created_at", desc=True)
+        .execute()
+    )
+    rows = {r["id"]: r for r in (direct.data or [])}
+
+    # Fallback via leads, kept deliberately. 0021 backfilled customer_id only
+    # where a lead already implied it, so a link created before that migration
+    # against a lead whose customer was set later still has customer_id NULL.
+    # Dropping this path would silently hide those payment requests from the
+    # person who has to pay them.
     leads = (
         db.table("travel_leads")
         .select("id")
@@ -300,20 +346,20 @@ def my_payments(traveller: dict = Depends(get_current_traveller)) -> list[Travel
         .execute()
     )
     lead_ids = [r["id"] for r in (leads.data or [])]
-    if not lead_ids:
-        return []
-
-    links = (
-        db.table("payment_links")
-        .select("id, amount, currency, status, expiry_at, gateway_short_url, created_at")
-        .in_("lead_id", lead_ids)
-        .eq("business_id", traveller["business_id"])
-        .order("created_at", desc=True)
-        .execute()
-    )
+    if lead_ids:
+        via_leads = (
+            db.table("payment_links")
+            .select(cols)
+            .in_("lead_id", lead_ids)
+            .eq("business_id", traveller["business_id"])
+            .order("created_at", desc=True)
+            .execute()
+        )
+        for r in via_leads.data or []:
+            rows.setdefault(r["id"], r)  # de-dupe: a link can satisfy both paths
 
     out: list[TravellerPaymentOut] = []
-    for r in links.data or []:
+    for r in sorted(rows.values(), key=lambda x: str(x.get("created_at") or ""), reverse=True):
         out.append(
             TravellerPaymentOut(
                 id=str(r["id"]),

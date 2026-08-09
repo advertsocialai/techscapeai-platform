@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { OnboardingProvider } from './features/onboarding/context/OnboardingContext'
 import RequireStep from './features/onboarding/RequireStep'
 import RequireTraveller from './features/trip/RequireTraveller'
+import TravellerLoginPage from './features/trip/TravellerLoginPage'
 
 // Onboarding — screens 1-6
 import LoginPage from './features/onboarding/pages/LoginPage'
@@ -65,6 +66,9 @@ export default function App() {
                 customer's booking rather than fixtures. The guard is the first
                 line only — every /me endpoint independently requires that token
                 and scopes by customer_id AND business_id. */}
+            {/* Traveller sign-in: email -> OTP. Separate from /onboarding/login
+                because a traveller has NO password to present. */}
+            <Route path="/trip/login" element={<TravellerLoginPage />} />
             <Route path="/trip" element={<RequireTraveller><TripShell /></RequireTraveller>}>
               <Route index element={<TripPage />} />
               <Route path="payments" element={<PaymentsPage />} />

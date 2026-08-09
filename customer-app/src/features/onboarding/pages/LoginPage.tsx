@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi } from '../../../lib/api'
+import api, { authApi } from '../../../lib/api'
 import { errorMessage } from '../../../lib/errors'
 
 // ── Klara Logo ──────────────────────────────────────
@@ -45,6 +45,7 @@ export default function LoginPage() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
   async function handleLogin() {
     if (!email || !password) {
@@ -68,6 +69,48 @@ export default function LoginPage() {
     }
   }
 
+  // Was a dead <span> with no onClick, while authApi.forgotPassword() sat
+  // defined and never called. A control that looks clickable and does nothing
+  // is worse than no control: the user concludes the product is broken.
+  async function handleForgot() {
+    if (!email) {
+      setError('Enter your email first, then tap Forgot password')
+      return
+    }
+    setError('')
+    setLoading(true)
+    try {
+      await authApi.forgotPassword(email)
+      // Deliberately does not confirm whether the address exists — same
+      // enumeration guard the backend applies.
+      setError('')
+      setNotice('If that email has an account, a reset link is on its way.')
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // GET /auth/oauth/google/url returns the provider URL to hand the browser.
+  // A full-page redirect, not an XHR: an OAuth consent screen cannot complete
+  // inside a fetch, and the callback has to land on a real navigation.
+  async function handleGoogle() {
+    setError('')
+    setLoading(true)
+    try {
+      const res = await api.get<{ url?: string; authorization_url?: string }>(
+        '/auth/oauth/google/url',
+      )
+      const url = res.data?.url || res.data?.authorization_url
+      if (!url) throw new Error('Google sign-in is not configured on the server yet.')
+      window.location.href = url
+    } catch (err) {
+      setError(errorMessage(err))
+      setLoading(false)
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') handleLogin()
   }
@@ -83,17 +126,6 @@ export default function LoginPage() {
       {/* Ambient glows */}
       <div style={{ position: 'fixed', top: -140, right: -100, width: 420, height: 420, borderRadius: '50%', background: 'radial-gradient(circle, rgba(59,143,232,0.09) 0%, transparent 65%)', pointerEvents: 'none', zIndex: 0 }} />
       <div style={{ position: 'fixed', bottom: -120, left: -80, width: 360, height: 360, borderRadius: '50%', background: 'radial-gradient(circle, rgba(247,169,124,0.07) 0%, transparent 65%)', pointerEvents: 'none', zIndex: 0 }} />
-
-      {/* Desktop left panel */}
-      <div style={{
-        display: 'none',
-        flexDirection: 'column',
-        gap: 28,
-        maxWidth: 320,
-        marginRight: 72,
-        flexShrink: 0,
-      }} className="desktop-panel">
-      </div>
 
       {/* Form column */}
       <div style={{ width: '100%', maxWidth: 430, position: 'relative', zIndex: 1 }}>
@@ -124,6 +156,12 @@ export default function LoginPage() {
             <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#F87171', display: 'flex', alignItems: 'center', gap: 8 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               {error}
+            </div>
+          )}
+
+          {notice && (
+            <div style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#34D399' }}>
+              {notice}
             </div>
           )}
 
@@ -185,7 +223,12 @@ export default function LoginPage() {
 
           {/* Forgot */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 20 }}>
-            <span style={{ fontSize: 12, fontWeight: 500, color: '#F7A97C', cursor: 'pointer' }}>Forgot password?</span>
+            <span
+              onClick={handleForgot}
+              style={{ fontSize: 12, fontWeight: 500, color: '#F7A97C', cursor: 'pointer' }}
+            >
+              Forgot password?
+            </span>
           </div>
 
           {/* Sign in button */}
@@ -218,7 +261,10 @@ export default function LoginPage() {
           </div>
 
           {/* Google */}
-          <button style={{
+          <button
+            onClick={handleGoogle}
+            disabled={loading}
+            style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             width: '100%', height: 50, borderRadius: 14,
             background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',

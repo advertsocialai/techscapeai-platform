@@ -21,9 +21,11 @@ export default function RequireTraveller({ children }: { children: React.ReactNo
   const location = useLocation()
 
   if (!isTravellerAuthenticated()) {
-    // `state.from` so the login screen can send them back where they were
-    // heading rather than dumping everyone on the trip index.
-    return <Navigate to="/onboarding/login" replace state={{ from: location.pathname }} />
+    // /trip/login, NOT /onboarding/login: that form asks for a password, and a
+    // traveller has none. Sending them there was a dead end — a guard with
+    // nowhere to send people is not security, it is a broken door.
+    // `state.from` returns them to the page they actually wanted.
+    return <Navigate to="/trip/login" replace state={{ from: location.pathname }} />
   }
 
   return <>{children}</>

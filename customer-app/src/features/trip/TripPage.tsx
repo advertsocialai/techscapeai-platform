@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { travellerApi } from '../../lib/travellerApi'
 import { colors, radii } from '../../styles/tokens'
-import { Card, ErrorBlock, Money, SkeletonBlock } from './ui'
+import { Card, EmptyBlock, ErrorBlock, Money, SkeletonBlock } from './ui'
 
 const VISA_LABEL: Record<string, string> = {
   not_required: 'Not required',
@@ -23,8 +23,34 @@ export default function TripPage() {
   const tripQ = useQuery({ queryKey: ['traveller', 'trip'], queryFn: travellerApi.trip })
 
   if (tripQ.isLoading) return <SkeletonBlock rows={4} />
-  if (tripQ.isError) return <ErrorBlock error={tripQ.error} onRetry={() => tripQ.refetch()} />
-  if (!tripQ.data) return null
+
+  // A 404 from GET /me/trip means "you have no active booking" — a real,
+  // expected state, not a failure. It gets the empty state; anything else is a
+  // genuine error and gets the retry block. Rendering a red error box at a
+  // customer who simply has no upcoming trip would be alarming and wrong.
+  if (tripQ.isError) {
+    const status = (tripQ.error as { response?: { status?: number } })?.response?.status
+    if (status === 404) {
+      return (
+        <EmptyBlock
+          title="No active trip"
+          reason="Once your agent confirms a booking it will appear here, with your itinerary and payments."
+        />
+      )
+    }
+    return <ErrorBlock error={tripQ.error} onRetry={() => tripQ.refetch()} />
+  }
+
+  // Was `return null` — a blank screen with no explanation, indistinguishable
+  // from a broken page.
+  if (!tripQ.data) {
+    return (
+      <EmptyBlock
+        title="No active trip"
+        reason="Once your agent confirms a booking it will appear here."
+      />
+    )
+  }
 
   const trip = tripQ.data
   const outstanding = Number(trip.total_amount) - Number(trip.amount_paid)
