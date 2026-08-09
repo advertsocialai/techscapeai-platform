@@ -59,7 +59,7 @@ makes "is production at 0019?" answerable for the first time.
 | 2026-08-09 | 0015_currency_and_fx.sql | branches.currency + fx_rate_snapshots + fx_rate_at() | YES | Claude Code |
 | 2026-08-09 | 0016_usage_metrics.sql | usage_metrics | YES | Claude Code |
 | 2026-08-09 | 0017_rpc_tenant_isolation.sql | RPC EXECUTE revoked from PUBLIC/anon/authenticated | YES | Claude Code |
-| **NOT APPLIED** | **0018_tenant_b_fixture.sql** | **Seeds a synthetic tenant + 4 login accounts. This is TEST DATA, not schema — deliberately held back from a database holding real businesses and users. Needs an explicit decision.** | YES | — |
+| 2026-08-09 | 0018_tenant_b_fixture.sql | Synthetic tenant B: business + branch + 4 users (manager/manager/agent/viewer) + phone +919999900002 + a deliberately different ai_config. **Applied on explicit instruction after being held back once.** The file as committed FAILED — it wrote a `slug` column that ts_businesses does not have, and omitted contact_email/api_key_hash (both NOT NULL, no default). Corrected at apply time and the file was fixed to match; api_key_hash is a non-hash sentinel so the fixture tenant has no usable API key | YES (see file's ROLLBACK — deletes only these rows) | Claude Code |
 | 2026-08-09 | 0019_tenant_billing.sql | tenant_billing_accounts + usage_invoices + freeze trigger | YES | Claude Code |
 
 ### Pre-flight checks that gated this (none were assumed)

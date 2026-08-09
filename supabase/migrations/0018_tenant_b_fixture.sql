@@ -36,11 +36,25 @@
 -- Additive only. Touches no existing row.
 
 -- ── 1) The business ────────────────────────────────────────────────────────
-INSERT INTO public.ts_businesses (id, name, slug, status, created_at)
+-- CORRECTED 2026-08-09, at first application. This block previously wrote a
+-- `slug` column and omitted `contact_email` / `api_key_hash`. Against the real
+-- ts_businesses that fails outright:
+--     ERROR: 42703: column "slug" of relation "ts_businesses" does not exist
+-- There is no slug column, and contact_email + api_key_hash are both NOT NULL
+-- with no default. The file had never been run, so nothing caught it — the same
+-- documentation-vs-reality gap this repo keeps paying for.
+--
+-- api_key_hash is a deliberate NON-hash sentinel. The auth path compares a hash
+-- of the presented key against this value, so a string that is not a hash can
+-- never match: the fixture tenant has NO usable API key. That is the safe
+-- direction for a synthetic tenant living in a database with real ones.
+INSERT INTO public.ts_businesses (id, name, industry, contact_email, api_key_hash, status, created_at)
 VALUES (
     '00000000-0000-4000-b000-00000000000b',
     'regression-fixture-tenant-b',
-    'regression-fixture-tenant-b',
+    'travel',
+    'owner@regression-fixture-tenant-b.test',
+    'no-api-key-regression-fixture-tenant-b',
     'active',
     now()
 )
@@ -107,7 +121,11 @@ VALUES (
     '["Which city are you flying from?", "Do you need visa assistance?"]'::jsonb,
     '["te", "hi"]'::jsonb,
     '{"budget_threshold": 250000, "intent_level": "warm"}'::jsonb,
-    '{"start": "10:00", "end": "19:00", "tz": "Asia/Kolkata"}'::jsonb,
+    -- 'timezone', not 'tz': 0006's default working_hours uses "timezone", and a
+    -- fixture that spells the key differently would make any code reading
+    -- working_hours->>'timezone' silently fall back for this tenant only —
+    -- a fake failure the isolation tests would then chase.
+    '{"start": "10:00", "end": "19:00", "timezone": "Asia/Kolkata"}'::jsonb,
     '{"name": "Meera", "tone": "brisk_professional"}'::jsonb,
     now(), now()
 )
