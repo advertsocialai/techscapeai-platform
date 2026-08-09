@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../../lib/api'
+import { errorMessage } from '../../lib/errors'
 import { isPasswordValid, passwordErrors } from '../../lib/passwordValidation'
 import PasswordRequirements from './PasswordRequirements'
 
@@ -33,10 +34,10 @@ export default function ResetPasswordPage() {
       setDone(true)
       setTimeout(() => navigate('/login', { replace: true }), 1500)
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
-        'Could not reset your password. The link may have expired.'
-      setError(message)
+      // This endpoint runs the same password-strength validator as register, so
+      // a 422 with an ARRAY `detail` is a live possibility here — exactly the
+      // shape the old `detail as string` cast rendered and crashed on.
+      setError(errorMessage(err))
     } finally {
       setSubmitting(false)
     }

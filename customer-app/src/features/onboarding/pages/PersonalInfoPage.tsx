@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../context/OnboardingContext'
+import { isPasswordValid, passwordErrors } from '../../../lib/passwordValidation'
+import PasswordRequirements from '../PasswordRequirements'
 
 function BackArrow() {
   return (
@@ -78,7 +80,12 @@ export default function PersonalInfoPage() {
     } else if (phoneDigits.length !== phoneLengths[countryCode]) {
       e.phone = `Enter a valid ${phoneLengths[countryCode]}-digit phone number`
     }
-    if (password.length < 8) e.password = 'Password must be at least 8 characters'
+    // Mirrors the server's policy exactly (lib/passwordValidation.ts). This used
+    // to be a length-only check, so a password the client accepted was rejected
+    // by the backend four screens later.
+    if (!isPasswordValid(password)) {
+      e.password = `Password needs ${passwordErrors(password).join(', ').toLowerCase()}`
+    }
     if (password !== confirmPassword) e.confirmPassword = 'Passwords do not match'
     return e
   }
@@ -192,8 +199,13 @@ export default function PersonalInfoPage() {
                 <EyeIcon open={showPw} />
               </button>
             </div>
-            <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.28)', marginTop: 4 }}>Minimum 8 characters</div>
-            {errors.password && <div style={{ fontSize: 11, color: '#F87171', marginTop: 2 }}>{errors.password}</div>}
+            {!password && (
+              <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.28)', marginTop: 4 }}>
+                8+ characters, with upper and lower case, a number and a symbol
+              </div>
+            )}
+            <PasswordRequirements password={password} />
+            {errors.password && <div style={{ fontSize: 11, color: '#F87171', marginTop: 4 }}>{errors.password}</div>}
           </div>
 
           {/* Confirm Password */}

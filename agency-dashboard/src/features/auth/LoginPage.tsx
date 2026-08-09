@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import { errorMessage } from '../../lib/errors'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -20,10 +21,11 @@ export default function LoginPage() {
       const from = (location.state as { from?: string })?.from || '/'
       navigate(from, { replace: true })
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
-        'Invalid email or password'
-      setError(message)
+      // errorMessage() rather than a `detail as string` cast: `detail` is an
+      // ARRAY on a 422, which is truthy, so the cast passed it straight through
+      // to render and threw "Objects are not valid as a React child". It also
+      // stops a network failure being reported as "Invalid email or password".
+      setError(errorMessage(err))
     } finally {
       setSubmitting(false)
     }

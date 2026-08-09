@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { OnboardingProvider } from './features/onboarding/context/OnboardingContext'
+import RequireStep from './features/onboarding/RequireStep'
 
 // Onboarding — screens 1-6
 import LoginPage from './features/onboarding/pages/LoginPage'
@@ -40,9 +41,21 @@ export default function App() {
 
             <Route path="/onboarding/login" element={<LoginPage />} />
             <Route path="/onboarding/personal-info" element={<PersonalInfoPage />} />
-            <Route path="/onboarding/address" element={<AddressPage />} />
-            <Route path="/onboarding/otp" element={<OtpPage />} />
-            <Route path="/onboarding/terms" element={<TermsPage />} />
+            {/* Steps run in order. `terms` additionally requires a verified OTP
+                — see RequireStep for why that check is necessary but not
+                sufficient, and which backend gap still has to close. */}
+            <Route
+              path="/onboarding/address"
+              element={<RequireStep step="address"><AddressPage /></RequireStep>}
+            />
+            <Route
+              path="/onboarding/otp"
+              element={<RequireStep step="otp"><OtpPage /></RequireStep>}
+            />
+            <Route
+              path="/onboarding/terms"
+              element={<RequireStep step="terms"><TermsPage /></RequireStep>}
+            />
             <Route path="/onboarding/success" element={<SuccessPage />} />
 
             {/* Traveller surface. No auth guard: there is no traveller identity

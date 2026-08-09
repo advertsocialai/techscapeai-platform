@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { authApi } from './api'
+import { errorMessage } from './errors'
 import type { MeResponse, RegisterPayload } from '../types/auth'
 
 interface AuthContextValue {
@@ -40,10 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const meRes = await authApi.me()
       setMe(meRes)
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
-        'Login failed'
-      setError(message)
+      setError(errorMessage(err))
       throw err
     }
   }
@@ -62,8 +60,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // itself failed, since retrying would just 409 on "already exists".
         throw new Error('ACCOUNT_CREATED_LOGIN_FAILED', { cause: err })
       }
-      const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Registration failed')
+      // The `typeof detail === 'string'` guard avoided the crash but threw the
+      // useful half away: a 422 array carries the exact rule that failed, and
+      // the user got the word "Registration failed" instead.
+      setError(errorMessage(err))
       throw err
     }
   }

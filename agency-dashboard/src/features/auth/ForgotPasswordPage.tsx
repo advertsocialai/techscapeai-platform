@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { authApi } from '../../lib/api'
+import { errorMessage } from '../../lib/errors'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -18,10 +19,7 @@ export default function ForgotPasswordPage() {
       setSent(true)
       setDevResetLink(res.reset_token ? `/reset-password?token=${res.reset_token}` : null)
     } catch (err) {
-      const message =
-        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail ||
-        'Something went wrong. Please try again.'
-      setError(message)
+      setError(errorMessage(err))
     } finally {
       setSubmitting(false)
     }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../context/OnboardingContext'
 import { authApi } from '../../../lib/api'
+import { errorMessage } from '../../../lib/errors'
 
 function BackArrow() {
   return (
@@ -22,14 +23,24 @@ export default function OtpPage() {
   const [resendMsg, setResendMsg] = useState('')
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
+  // The context email is empty on a hard refresh of this route, so both sending
+  // AND verifying must resolve it the same way. They previously did not: send
+  // fell back to localStorage, verify used the (empty) context value, so a
+  // reload produced a code that could never be verified.
+  const otpEmail = email || localStorage.getItem('klara_otp_email') || ''
+
   // Auto-send OTP on mount
   useEffect(() => {
-    const otpEmail = email || localStorage.getItem('klara_otp_email') || ''
     if (otpEmail) {
-      authApi.sendOtp(otpEmail).catch(() => {})
-   }
+      // Was `.catch(() => {})`. Swallowing this left the user staring at six
+      // empty boxes waiting for a code that was never sent, with nothing on
+      // screen to say so.
+      authApi.sendOtp(otpEmail).catch((err) => setError(errorMessage(err)))
+    } else {
+      setError('We do not have your email address. Go back and re-enter it.')
+    }
     inputRefs.current[0]?.focus()
-  }, [])
+  }, [otpEmail])
 
   // Countdown timer
   useEffect(() => {
@@ -81,11 +92,11 @@ export default function OtpPage() {
     setLoading(true)
     setError('')
     try {
-      await authApi.verifyOtp(email, code)
+      await authApi.verifyOtp(otpEmail, code)
       setOtpVerified(true)
       navigate('/onboarding/terms')
-    } catch {
-      setError('Invalid or expired OTP. Please try again.')
+    } catch (err) {
+      setError(errorMessage(err))
       setDigits(['', '', '', '', '', ''])
       inputRefs.current[0]?.focus()
     } finally {
@@ -94,12 +105,21 @@ export default function OtpPage() {
   }
 
   async function handleResend() {
-    setSecondsLeft(300)
     setDigits(['', '', '', '', '', ''])
     setError('')
-    setResendMsg('New OTP sent!')
-    setTimeout(() => setResendMsg(''), 3000)
-    try { await authApi.sendOtp(email) } catch { /* resend is best-effort; UI already shows optimistic "New OTP sent!" */ }
+    setResendMsg('')
+    // AWAIT before claiming delivery. The previous version set "New OTP sent!"
+    // first and swallowed the failure, so a send that never happened still told
+    // the user a fresh code was on its way — and reset the 5-minute timer to
+    // match the lie. Only a resolved send earns the message and the new clock.
+    try {
+      await authApi.sendOtp(otpEmail)
+      setSecondsLeft(300)
+      setResendMsg('New OTP sent!')
+      setTimeout(() => setResendMsg(''), 3000)
+    } catch (err) {
+      setError(errorMessage(err))
+    }
     inputRefs.current[0]?.focus()
   }
 

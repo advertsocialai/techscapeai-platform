@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '../../../lib/api'
+import { errorMessage } from '../../../lib/errors'
 
 // ── Klara Logo ──────────────────────────────────────
 function KlaraLogo() {
@@ -58,8 +59,10 @@ export default function LoginPage() {
       localStorage.setItem('refresh_token', res.data.refresh_token)
       navigate('/dashboard')
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-      setError(detail || 'Invalid email or password')
+      // Was: `detail || 'Invalid email or password'`, which reported a network
+      // outage or a 500 as bad credentials — sending the user to reset a
+      // password that was never wrong. errorMessage() distinguishes them.
+      setError(errorMessage(err))
     } finally {
       setLoading(false)
     }

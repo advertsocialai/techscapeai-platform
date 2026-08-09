@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useOnboarding } from '../context/OnboardingContext'
 import { authApi } from '../../../lib/api'
+import { errorMessage } from '../../../lib/errors'
 
 function BackArrow() {
   return (
@@ -92,8 +93,11 @@ export default function TermsPage() {
       ctx.setTerms({ termsAccepted: terms, ageConfirmed: age, marketingOptIn: marketing })
       navigate('/onboarding/success')
     } catch (err) {
-      const detail = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
-      setError(detail || 'Something went wrong. Please try again.')
+      // errorMessage(), not a `detail as string` cast: register's most likely
+      // failure is a 422, whose `detail` is an ARRAY. Rendering that as a React
+      // child threw "Objects are not valid as a React child" and white-screened
+      // this page — the user never saw which rule their password broke.
+      setError(errorMessage(err))
     } finally {
       setLoading(false)
     }

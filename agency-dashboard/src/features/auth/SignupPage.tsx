@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import { errorMessage } from '../../lib/errors'
 import { isPasswordValid, passwordErrors } from '../../lib/passwordValidation'
 import PasswordRequirements from './PasswordRequirements'
 
@@ -44,8 +45,7 @@ export default function SignupPage() {
       if (err instanceof Error && err.message === 'ACCOUNT_CREATED_LOGIN_FAILED') {
         setError('Your account was created, but we could not sign you in automatically. Please sign in below.')
       } else {
-        const detail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
-        setError(typeof detail === 'string' ? detail : 'Could not create your account. Please check your details and try again.')
+        setError(errorMessage(err))
       }
     } finally {
       setSubmitting(false)
