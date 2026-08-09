@@ -54,3 +54,5 @@ logs/
 
 ngrok.exe
 .dev-logs/
+__pycache__/
+*.pyc

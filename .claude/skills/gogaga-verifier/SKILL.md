@@ -66,3 +66,25 @@ IMPORTANT: read the JWT secret/alg/claim-shape from `api/app/core/security.py` f
 End every phase with `PHASE<N>_REPORT.md`: endpoints added · files touched · access matrix table (from access_matrix.py output) · failure-path evidence · TODOs left · deviations from plan discovered during recon.
 
 For the full curl command cookbook per endpoint, read `references/curl-cookbook.md`.
+
+## Dead-code sweep — run before calling any phase done
+
+`scripts/find_dead_code.py` finds functions that are DEFINED, correct, and NEVER
+CALLED. This is the most expensive recurring defect in this repo: it has landed
+at least four times and passed review every time, because the code itself was
+fine and only the wiring was missing. Tests cannot catch it — nothing fails, the
+feature is simply absent.
+
+```bash
+python3 .claude/skills/gogaga-verifier/scripts/find_dead_code.py --min-lines 8
+```
+
+Confirmed catches: `ai_engine.run_turn()` (no voice turn loop, so the AI never
+replies mid-call), `voice.synthesize_speech()` (TTS never plays),
+`voice.log_voice_turn()` (the VOICE_TURN latency line the blueprint mandates is
+never emitted), `call_feed.subscribe_call()` (the live dashboard would have gone
+silent the moment Redis was provisioned).
+
+Each hit is a QUESTION — "who should be calling this?" — not a verdict. Every
+past instance here was a missing call, so the fix is almost always to WIRE IT
+UP, never to delete.
