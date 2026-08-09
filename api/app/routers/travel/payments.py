@@ -232,13 +232,19 @@ async def create_payment_link(body: PaymentLinkCreate, user: dict = Depends(_AGE
         db.table(_TABLE).delete().eq("id", row["id"]).eq("business_id", business_id).execute()
         raise HTTPException(http_status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
 
+    # result.to_row() rather than re-listing the columns here. The helper exists
+    # precisely to own "which columns a gateway result writes", and it had zero
+    # call sites while this block hand-maintained a near-copy of it — one field
+    # short (`gateway`) and one drift away from disagreeing with it.
+    #
+    # No behaviour change today: the placeholder above already wrote
+    # `gateway: gw.name`, and `result` comes from that same gateway, so every
+    # value matches. What changes is that the gateway result is now the single
+    # authority on what it actually created, instead of two lists that have to
+    # be kept in step by hand.
     updated = (
-        db.table(_TABLE).update({
-            "gateway_link_id": result.gateway_link_id,
-            "gateway_short_url": result.gateway_short_url,
-            "status": result.status,
-            "expiry_at": result.expiry_at.isoformat() if result.expiry_at else None,
-        }).eq("id", row["id"]).eq("business_id", business_id).execute().data
+        db.table(_TABLE).update(result.to_row())
+        .eq("id", row["id"]).eq("business_id", business_id).execute().data
     )
     final = updated[0] if updated else row
     logger.info(

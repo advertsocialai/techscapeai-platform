@@ -8,11 +8,14 @@ This is the single most expensive recurring defect in this codebase. It has
 landed at least four times, and each instance passed code review, type checks
 and tests — because the code itself was fine. Only the wiring was missing:
 
-  * `ai_engine.run_turn()`        — zero call sites. There is no voice turn
-                                    loop, so the AI never replies during a
-                                    call. Phase 3's sentiment, whisper and
-                                    scoring were all built on top of it.
-  * `voice.synthesize_speech()`   — zero call sites. TTS never plays.
+  * `ai_engine.run_turn()`        — FIXED 2026-08-09. Had zero call sites, so
+                                    the AI never replied during a call, while
+                                    Phase 3's sentiment, whisper and scoring
+                                    all ran happily on top of the silence.
+                                    Now called by voice_turn_service.
+  * `voice.synthesize_speech()`   — FIXED 2026-08-09, same wiring.
+  * `voice.log_voice_turn()`      — FIXED 2026-08-09. The VOICE_TURN latency
+                                    line had never been emitted by anything.
   * `call_feed.subscribe_call()`  — zero call sites until Phase 3. The live
                                     dashboard would have gone silent the moment
                                     Redis was provisioned.
@@ -20,6 +23,11 @@ and tests — because the code itself was fine. Only the wiring was missing:
 
 A passing test suite cannot catch this: nothing fails, the feature is simply
 absent. Grep can, in seconds.
+
+The repo is currently CLEAN — this script reports zero. It stays clean only if
+someone runs it. `api/tests/test_voice_turn_loop.py` now asserts the WIRING of
+the voice loop (not just its behaviour) so that particular regression turns a
+test red instead of going quiet again.
 
 USAGE
     python3 find_dead_code.py                 # scan api/app

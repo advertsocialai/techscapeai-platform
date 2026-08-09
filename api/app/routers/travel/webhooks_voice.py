@@ -34,7 +34,12 @@ from app.services.travel import call_feed
 from app.services.travel.voice import (
     select_stt_engine, stream_xml, transcribe_utterance, verify_plivo_signature,
 )
-from app.services.travel import suggestion_service, sentiment_service, post_call_service
+from app.services.travel import (
+    suggestion_service,
+    sentiment_service,
+    post_call_service,
+    voice_turn_service,
+)
 from app.services.travel.embeddings import schedule_transcript_embedding
 
 logger = logging.getLogger(__name__)
@@ -308,6 +313,26 @@ async def media_stream(websocket: WebSocket, provider: str):
                         # T3: suggestion generation (fire-and-forget, OFFLINE mode)
                         suggestion_service.schedule(
                             call_row["id"], result["text"], "customer", ai_config
+                        )
+
+                        # THE VOICE TURN — the AI actually replies.
+                        # Until this line existed, ai_engine.run_turn(),
+                        # voice.synthesize_speech() and voice.log_voice_turn()
+                        # had ZERO call sites: the customer spoke, we transcribed,
+                        # scored, embedded and whispered to the agent — and the AI
+                        # never said a word back. Nothing errored, which is why it
+                        # went unnoticed; the feature was simply absent.
+                        # Runs credential-free (stub model + silent TTS) and
+                        # fire-and-forget so a 30s model call cannot stall the
+                        # media socket and make Plivo drop the stream.
+                        voice_turn_service.schedule(
+                            call_id=call_row["id"],
+                            business_id=call_row["business_id"],
+                            lead_id=call_row.get("lead_id"),
+                            customer_text=result["text"],
+                            language=call_row.get("language", "en"),
+                            stt_engine=engine,
+                            ai_config=ai_config,
                         )
 
                     # T5: post-call intelligence pipeline (fire-and-forget)
