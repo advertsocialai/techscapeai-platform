@@ -22,9 +22,10 @@ to the FUTURE marketing site only. The real apps use their own token files
 (`customer-app/src/styles/tokens.ts`, `agency-dashboard/src` CSS variables) —
 do not import these values into them.
 
-**Scoreboard rule:** `AREAS.md` at the repo root is the combined completeness
-scoreboard for both apps. Any change that moves an area's completeness — up or
-down — must update `AREAS.md` in the same commit.
+**Scoreboard rule:** `GOGAGA_ANALYSIS_REPORT.md` at the repo root is the
+combined completeness scoreboard for both apps. Any change that moves an
+area's completeness — up or down — must update `GOGAGA_ANALYSIS_REPORT.md`
+in the same commit.
 
 ---
 

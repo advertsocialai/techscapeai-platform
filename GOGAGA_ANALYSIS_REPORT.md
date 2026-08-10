@@ -1,4 +1,4 @@
-# AREAS.md — the combined area scoreboard (both apps)
+# GoGaga Analysis Report — the combined area scoreboard (both apps)
 
 **Update rule: any commit that moves an area's completeness — up or down — must
 update this file in the same commit.** This is the single combined view; the

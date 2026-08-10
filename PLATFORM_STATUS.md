@@ -3,7 +3,7 @@
 Last updated **2026-08-09 (push-to-100% run)**. History: the pre-run baseline is in git at `361a318`.
 
 > The **combined scoreboard** (all areas in one table, plus stubbed-vs-live)
-> lives in `AREAS.md` — that file is updated in the same commit as any change
+> lives in `GOGAGA_ANALYSIS_REPORT.md` — that file is updated in the same commit as any change
 > that moves a number. This file holds the narrative evidence behind them.
 
 Every number below is measured, not estimated — the evidence column says how. Where
