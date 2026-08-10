@@ -128,6 +128,11 @@ def _consume_reset_token(token: str) -> Optional[str]:
 # ── Routes ────────────────────────────────────────────────────────
 @router.post("/register-business", status_code=status.HTTP_201_CREATED)
 def register_business(payload: RegisterBusinessIn, request: Request):
+    if not _consume_verified_email(str(payload.contact_email)):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Email not verified — call /otp/send then /otp/verify first",
+        )
     svc = BusinessService()
     try:
         if svc.find_user_by_email(str(payload.contact_email)):
@@ -311,6 +316,18 @@ def password_reset(payload: PasswordResetIn, request: Request):
 _OTP_TTL_SEC = 5 * 60
 _otp_tokens: dict[str, tuple[str, float]] = {}
 
+_VERIFIED_EMAIL_TTL_SEC = 15 * 60
+_verified_emails: dict[str, float] = {}
+
+
+def _consume_verified_email(email: str) -> bool:
+    expires_at = _verified_emails.pop(email, None)
+    if expires_at is None:
+        return False
+    if time.monotonic() > expires_at:
+        return False
+    return True
+
 
 def _issue_otp(email: str) -> str:
     code = str(secrets.randbelow(900000) + 100000)
@@ -379,6 +396,7 @@ def otp_verify(payload: OtpVerifyIn, request: Request):
             status.HTTP_400_BAD_REQUEST,
             "Invalid or expired OTP"
         )
+    _verified_emails[str(payload.email)] = time.monotonic() + _VERIFIED_EMAIL_TTL_SEC
     return {"ok": True, "verified": True}
 
 

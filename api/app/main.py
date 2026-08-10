@@ -7,6 +7,7 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -99,6 +100,18 @@ app.include_router(calls_ws_router)
 # ──────────────────────────────────────────────
 # Global exception handler
 # ──────────────────────────────────────────────
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    # Strip `input` and `ctx` to prevent echoing submitted field values
+    # (e.g. plaintext passwords) in 422 validation error responses.
+    def _scrub(err: dict) -> dict:
+        return {k: v for k, v in err.items() if k not in ("input", "ctx")}
+    return JSONResponse(
+        status_code=422,
+        content={"detail": [_scrub(e) for e in exc.errors()]},
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)

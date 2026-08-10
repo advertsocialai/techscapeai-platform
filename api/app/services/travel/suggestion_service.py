@@ -131,9 +131,9 @@ async def generate_and_broadcast(
 
     # Broadcast
     await call_feed.publish(call_id, {
-        "type": "suggestion",
+        "type": "whisper",
         "call_id": call_id,
-        "text": suggestion,
+        "suggestion": suggestion,
         "mode": "claude" if settings.ANTHROPIC_API_KEY else "keyword",
     })
 

@@ -31,6 +31,7 @@ from .reports     import router as reports_router    # Phase 4 T4/T5
 from .followups   import router as followups_router  # Phase 4 T6
 from .activity    import router as activity_router   # Phase 4 T7
 from .usage       import router as usage_router      # Phase 4 T9
+from .traveller   import router as traveller_router  # Phase 3 T3 (multi-agency)
 
 
 travel_router = APIRouter(prefix="/travel/v1")
@@ -52,6 +53,7 @@ travel_router.include_router(webhooks_voice_router, prefix="/webhook",  tags=["T
 travel_router.include_router(calls_router,      prefix="/calls",       tags=["Travel · Calls"])
 travel_router.include_router(takeover_router,   prefix="/calls",       tags=["Travel · Human Takeover"])  # P3 T1
 travel_router.include_router(ai_config_router,  prefix="/ai-config",   tags=["Travel · AI Config"])        # P3 T2
+travel_router.include_router(traveller_router,  prefix="/traveller",   tags=["Travel · Traveller Auth"])  # P3 T3
 travel_router.include_router(packages_router,   prefix="/packages",    tags=["Travel · Packages"])         # P4 T1
 # payments defines its own full paths (/payment-links, /webhook/razorpay),
 # so it mounts with no prefix. The razorpay webhook is gateway-signed, not

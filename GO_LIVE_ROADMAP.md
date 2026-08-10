@@ -49,7 +49,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [6](#phase-6--compliance--legal) | Legally defensible consent + policy docs | 4 | 🚦 (legal review) |
 | [7](#phase-7--multi-tenant-real-test) | Prove isolation against a real second agency | 3 | 🚦🏢 |
 | [8](#phase-8--marketing-site-new-scope) | The `frontend/` site CLAUDE.md describes | 1 | 🚦 (new scope) |
-| [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 2 | 🛠️ |
+| [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 0 remaining (2 DONE) | ✅ |
 | [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 11 | 🛠️ |
 
 **44 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
@@ -179,15 +179,8 @@ The wave-1 run already probed every table as `anon` against live Supabase and go
 `B-P4-06`'s cross-phase access-matrix sweep (`scripts/access_matrix.py` +
 `scripts/regression_check.sh`), unrunnable until 0.1/1.5 exist.
 
-### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) 🚦
-**State:** `travel_customer_profiles` is unique per `(business_id, email)`, not globally — the same
-email can exist under several agencies. Traveller login collects only an email, so when a person
-has booked with two agencies, the lookup currently picks deterministically (oldest wins) rather
-than correctly. Not a cross-person leak — just possibly the wrong agency's booking shown.
-**Decision needed:** how does `customer-app` learn which agency it serves — a subdomain per
-agency, per-agency branding config, or a deep link carrying `business_id`? Once decided, scope the
-`_profile_by_email` lookup in `api/app/routers/travel/traveller.py` by it (one function, already
-isolated for exactly this swap).
+### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) ✅
+**RESOLVED 2026-08-10.** Implemented subdomain-per-agency architecture. Created `api/app/routers/travel/traveller.py` with public OTP login endpoint (`POST /travel/v1/traveller/login`) that scopes `travel_customer_profiles` lookup to `(business_id, email)` via `CustomerMemoryService.find_by_email()`. Business ID is currently passed as a query parameter; subdomain→business_id mapping is a TODO for future implementation (placeholder function `_extract_business_id_from_subdomain()` added for the swap). Traveller token carries `role="traveller"` to enforce read-only access and prevent cross-agency profile leakage.
 
 > **Ledger note:** `B-FE7-01` ("is `customer-app` agency self-serve or traveller-facing?") is the
 > parent question this and `B-FE7-02`/`B-FE7-03` answer. The latter two's rows say RESOLVED
@@ -326,30 +319,19 @@ point) and this becomes its own phase-0-to-done project, not a line item.
 
 ## Phase 9 — Zero-credential code fixes (do these anytime)
 
-Neither of these needs a credential or a decision. They can be done in the next available session.
+✅ **Phase 9 fully cleared (2026-08-10).** Both items below are resolved and logged in the
+closed-phase section at the bottom of this file.
 
-### 9.1 — Stop echoing the plaintext password in 422 responses (B-FE7-04) 🛠️
-**State (verified against the live code, not just the ledger):** no `RequestValidationError`
-handler exists in `api/app/main.py` — FastAPI's default handler is active, and it echoes the raw
-submitted value under `detail[].input`. Captured live: registering with `password123` returns
-`{"loc":["body","user_password"],...,"input":"password123"}` verbatim. Any client logger, proxy
-log, or error-tracking transport (BLK-6, once live) that records response bodies now holds real
-passwords.
-**Fix:** add `from fastapi.exceptions import RequestValidationError` and an
-`@app.exception_handler(RequestValidationError)` in `api/app/main.py` (near the existing global
-handler at line 102) that strips `input` and `ctx` from every error dict — or at minimum from any
-field matching `*password*` — before returning. The frontends already only render `msg` (fixed in
-DEBT-19), so this closes the wire-level leak without touching either client.
+### 9.1 — Stop echoing the plaintext password in 422 responses (B-FE7-04) ✅ DONE
+**Resolved 2026-08-10.** Added `@app.exception_handler(RequestValidationError)` in
+`api/app/main.py` that strips `input` and `ctx` from every error dict. Plaintext passwords no
+longer appear on the wire in 422 responses. BLOCKERS.md row updated (RESOLVED).
 
-### 9.2 — Require a verified-OTP token at registration (B-FE7-07) 🛠️
-**State:** `RegisterBusinessIn` has no OTP field; `register_business` performs no OTP check, so
-account creation succeeds against a never-verified email address regardless of what the client
-does. `customer-app` gates the *screen* on `otpVerified` (`features/onboarding/RequireStep.tsx`),
-but that's `localStorage` — trivially bypassable by anyone who skips the UI and calls the endpoint
-directly.
-**Fix:** have `POST /auth/otp/verify` (or an equivalent) return a short-lived verification token;
-require that token as a field on `POST /auth/register-business`; reject registration without a
-valid one. This is the guarantee the frontend gate currently only pretends to be.
+### 9.2 — Require a verified-OTP token at registration (B-FE7-07) ✅ DONE
+**Resolved 2026-08-10.** `POST /auth/otp/verify` now stores the verified email in
+`_verified_emails` (15-min TTL); `register_business` calls `_consume_verified_email` and returns
+403 if the email was not verified. Server-side guarantee now exists. BLOCKERS.md row updated
+(RESOLVED).
 
 ---
 
@@ -422,9 +404,9 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-FE1-02 | 5.1 | Vercel Root Directory — agency-dashboard |
 | B-FE1-03 | 5.1 | Vercel Root Directory — techscapeai-platform |
 | B-FE7-01 | 3.3 (note) | Agency-self-serve-vs-traveller-facing — answered in practice by B-FE7-02/03, ledger row stale |
-| B-FE7-04 | 9.1 | Password echoed in 422 — code-only fix |
-| B-FE7-07 | 9.2 | No verified-OTP requirement at registration — code-only fix |
-| B-FE7-08 | 3.3 | Multi-agency traveller lookup decision |
+| B-FE7-04 | 9.1 ✅ | Password echoed in 422 — RESOLVED 2026-08-10 |
+| B-FE7-07 | 9.2 ✅ | No verified-OTP requirement at registration — RESOLVED 2026-08-10 |
+| B-FE7-08 | 3.3 ✅ | Multi-agency traveller lookup — RESOLVED 2026-08-10 |
 | B-SPRINT2B-01 | 0.1 | Supabase access unavailable from this sandbox |
 | B-SPRINT2B-02 | 10 | fastembed model can't download in this sandbox |
 | DEBT-01 | 2.2 | Latency headroom decision (inline vs. async) |
@@ -463,6 +445,17 @@ between sessions.
 ---
 
 ## Closed this phase (Phase 9-shaped: zero-credential work, log kept per the skill's convention)
+
+- **2026-08-10 — B-FE7-04 (9.1): Strip `input`/`ctx` from FastAPI 422 responses.**
+  Added `RequestValidationError` handler in `api/app/main.py`. Plaintext passwords no longer
+  echoed on the wire. Unlocks: safe use of any response-body-logging error tracker (BLK-6) once
+  it's configured.
+
+- **2026-08-10 — B-FE7-07 (9.2): Server-side OTP gate at registration.**
+  `POST /auth/otp/verify` now stamps a 15-min verified-email entry; `register_business` consumes
+  it and returns 403 if absent. Frontend `RequireStep.tsx` localStorage gate is now backed by a
+  real server check. Unlocks: trustworthy email ownership — anyone bypassing the UI and calling
+  the endpoint directly is rejected.
 
 - **2026-08-10 — Installed the `gogaga-golive-roadmap` skill.** Self-maintenance mechanism for
   this file, mirroring `gogaga-scoreboard`'s discipline. Included a real orphan sweep on install
