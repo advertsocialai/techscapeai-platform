@@ -65,12 +65,12 @@ jobs:
   # ──────────────────────────────────────────────
   # Backend — Lint & Test
   # Real backend lives in api/ (FastAPI), not backend/ (fixed 2026-08-07 —
-  # same broken-path issue as the frontend job above). No pytest suite
-  # exists in this repo yet (verified 2026-08-07 sprint: zero test_*.py
-  # files anywhere) — this step honestly runs an import-level smoke test
-  # (does app.main import cleanly + expose routes) instead of pretending
-  # `pytest tests/` works. Swap this step out for real pytest once a
-  # tests/ directory exists.
+  # same broken-path issue as the frontend job above). A real DB-free pytest
+  # suite now lives in api/tests/ (200+ tests as of 2026-08-10 — the old
+  # "no tests exist yet" conditional/continue-on-error was stale and has
+  # been removed: pytest runs unconditionally and failures FAIL the job).
+  # The suite uses fixture env values only (see api/tests/conftest.py) —
+  # real-credential verification stays in the gogaga-verifier scripts.
   # ──────────────────────────────────────────────
   backend:
     name: Backend Smoke Test
@@ -107,19 +107,32 @@ jobs:
           JWT_SECRET: fixture-jwt-secret-not-real
           JWT_REFRESH_SECRET: fixture-jwt-refresh-not-real
 
-      - name: Run tests (once tests/ exists)
-        run: |
-          if [ -d tests ]; then
-            pytest tests/ -v --tb=short
-          else
-            echo "No tests/ directory yet — skipping pytest (see gogaga-verifier skill for the current manual verification approach)."
-          fi
+      - name: Run tests
+        # Unconditional and gating. Fixture values only (same as the import
+        # smoke step above) — the suite is deliberately DB-free and must
+        # never receive real secrets; conftest.py would ignore them anyway
+        # for settings built at import time, and a green run that silently
+        # used production credentials would be worse than a red one.
+        run: pytest tests/ -v --tb=short
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SUPABASE_URL: http://fixture.invalid
+          SUPABASE_ANON_KEY: fixture-anon-key-not-real
+          SUPABASE_SERVICE_ROLE_KEY: fixture-service-key-not-real
+          JWT_SECRET: fixture-jwt-secret-not-real
+          JWT_REFRESH_SECRET: fixture-jwt-refresh-not-real
+
+      - name: Coverage report (informational — prints, does not gate)
+        # pytest-cov is pinned in api/requirements.txt. Coverage is printed
+        # for the scoreboard/COVERAGE_RULE.md conversation but has no
+        # threshold: continue-on-error keeps a coverage-tooling hiccup from
+        # masking the green/red signal of the gating test step above.
+        run: pytest tests/ --cov=app --cov-report=term -q
+        env:
+          SUPABASE_URL: http://fixture.invalid
+          SUPABASE_ANON_KEY: fixture-anon-key-not-real
+          SUPABASE_SERVICE_ROLE_KEY: fixture-service-key-not-real
+          JWT_SECRET: fixture-jwt-secret-not-real
+          JWT_REFRESH_SECRET: fixture-jwt-refresh-not-real
         continue-on-error: true
 
   # ──────────────────────────────────────────────

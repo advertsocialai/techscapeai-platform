@@ -1,0 +1,56 @@
+# Uptime checks — declarative, one entry per deploy target.
+#
+# This file is the single source of truth for "what URL proves this deploy
+# target is alive". It is deliberately service-agnostic: the same entries can
+# be fed to UptimeRobot / Better Stack / Checkly / a GitHub Actions cron, or
+# executed locally with scripts/run_uptime_checks.py (httpx, exits non-zero on
+# any failure).
+#
+# URL STATUS (2026-08-10): both Vercel projects are blocked on the two human
+# Root Directory clicks (BLK-4 / B-FE1-02 / B-FE1-03 — see
+# scripts/DEPLOY_READINESS.md), so no stable production URLs exist yet. Every
+# check therefore carries `placeholder: true` plus a `url_env` override; the
+# runner SKIPS placeholder checks unless the env var supplies a real URL.
+# When the deploys go live: paste the real URL into `url`, delete
+# `placeholder: true`, and the check goes hot everywhere at once.
+#
+# Field reference (per check, defaults apply unless overridden):
+#   id               unique name, also the runner's --only selector
+#   url              full URL to probe
+#   url_env          env var that overrides `url` when set (local runs / CI)
+#   method           HTTP method                          (default: GET)
+#   expected_status  exact status code that means healthy (default: 200)
+#   timeout_seconds  request timeout                      (default: 10)
+#   placeholder      true = URL is not live yet; runner skips unless url_env set
+
+version: 1
+
+defaults:
+  method: GET
+  expected_status: 200
+  timeout_seconds: 10
+
+checks:
+  # FastAPI backend — Vercel project `techscapeai-platform` (Root Directory=api).
+  # Target /api/health, NOT /docs or /openapi.json: those are DEBUG-only in
+  # app/main.py and return 404 in production, so they can never be an uptime
+  # signal. /api/health is unauthenticated, DB-free, and always mounted.
+  - id: api-health
+    url: https://techscapeai-platform.vercel.app/api/health
+    url_env: UPTIME_API_HEALTH_URL        # e.g. http://localhost:8000/api/health
+    placeholder: true
+
+  # Klara customer app (SPA) — Vercel preview/production URL.
+  # 200 + index.html on any route thanks to customer-app/vercel.json rewrites.
+  - id: customer-app
+    url: https://customer-app.vercel.app/
+    url_env: UPTIME_CUSTOMER_APP_URL
+    placeholder: true
+
+  # Agency dashboard (SPA) — Vercel project `agency-dashboard`.
+  # Deploys start succeeding only after the Root Directory click
+  # (`agency-app` → `agency-dashboard`); until then this stays a placeholder.
+  - id: agency-dashboard
+    url: https://agency-dashboard.vercel.app/
+    url_env: UPTIME_AGENCY_DASHBOARD_URL
+    placeholder: true

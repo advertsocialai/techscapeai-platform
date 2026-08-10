@@ -1,0 +1,19 @@
+# Vercel deploy config for the FastAPI backend (Root Directory = api).
+#
+# Vercel's Python/FastAPI framework detection only auto-accepts an `app`
+# variable in a default entrypoint location (main.py / index.py / app.py at
+# the root directory). Ours lives at app/main.py inside the `app` package, so
+# without this file the build fails with "No FastAPI entrypoint found ...
+# found potential entrypoints: app/main.py" (B-FE1-03 in BLOCKERS.md recorded
+# exactly that error from the repo root). `[tool.vercel] entrypoint` is
+# Vercel's documented mechanism for a non-default entrypoint
+# (https://vercel.com/docs/frameworks/backend/fastapi).
+#
+# Dependencies intentionally stay in requirements.txt (also supported by the
+# Vercel Python runtime) — no [project] dependencies table here, so local
+# tooling and CI keep a single source of truth for packages.
+#
+# Full deploy decision + local verification evidence: scripts/DEPLOY_READINESS.md
+
+[tool.vercel]
+entrypoint = "app.main:app"

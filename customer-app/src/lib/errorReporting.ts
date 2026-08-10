@@ -31,6 +31,16 @@ export function initErrorReporting() {
     record('unhandledrejection', String((e as PromiseRejectionEvent).reason)))
 }
 
+/**
+ * Report an error that was CAUGHT (React ErrorBoundary, explicit catch sites)
+ * rather than escaping to window. Same stub transport, same queue — so a
+ * future DSN picks these up with zero call-site changes.
+ */
+export function reportError(error: unknown, context?: string) {
+  const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  record('boundary', context ? `${msg} | ${context.slice(0, 300)}` : msg)
+}
+
 export function reportedEvents(): readonly Ev[] {
   return queue
 }

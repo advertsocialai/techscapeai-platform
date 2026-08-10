@@ -95,6 +95,17 @@ class Settings(BaseSettings):
     RATE_LIMIT_CONTACT: int = 5  # requests per minute per IP
     RATE_LIMIT_NEWSLETTER: int = 3
 
+    # ── Observability: alerting rules as code (app/core/alerting.py) ──
+    # The periodic evaluator is OFF unless OBSERVABILITY_ALERTS=true; the
+    # recording hooks are always live (they are O(1) appends).
+    OBSERVABILITY_ALERTS: bool = False
+    ALERT_CHECK_INTERVAL_SECONDS: int = 60
+    ALERT_ERROR_RATE_PER_MIN: int = 10       # rule 1: captured events/min
+    ALERT_VOICE_TURN_BUDGET_MS: int = 1100   # rule 2: ≤1.1s median mouth-to-ear SLO
+    ALERT_VOICE_TURN_MIN_SAMPLES: int = 5    # rule 2: min turns before judging median
+    ALERT_PAYMENT_SIG_FAILURES: int = 3      # rule 3: rejections per 60s window
+    ALERT_COOLDOWN_SECONDS: int = 300        # per-rule re-fire suppression
+
 
 @lru_cache()
 def get_settings() -> Settings:

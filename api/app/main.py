@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION} [{settings.ENVIRONMENT}]")
     stop_event: asyncio.Event = asyncio.Event()
     worker_task: asyncio.Task | None = None
+    alert_task: asyncio.Task | None = None
     if os.environ.get("ENABLE_WEBHOOK_WORKER") == "1":
         try:
             from app.services.techscape.webhook_worker import run_loop  # local import
@@ -39,15 +40,26 @@ async def lifespan(app: FastAPI):
             logger.info("TechScape webhook worker launched")
         except Exception:
             logger.exception("failed to start webhook worker")
+    # Observability: alerting rules as code (app/core/alerting.py). OFF by
+    # default — evaluates only when OBSERVABILITY_ALERTS=true. Fired rules go
+    # through error_tracking.capture_message (stub transport until a DSN exists).
+    if settings.OBSERVABILITY_ALERTS:
+        try:
+            from app.core import alerting  # local import: zero cost when disabled
+            alert_task = asyncio.create_task(alerting.run_alert_loop(stop_event))
+            logger.info("Observability alert loop launched")
+        except Exception:
+            logger.exception("failed to start alert loop")
     try:
         yield
     finally:
         stop_event.set()
-        if worker_task is not None:
-            try:
-                await asyncio.wait_for(worker_task, timeout=5)
-            except Exception:
-                pass
+        for task in (worker_task, alert_task):
+            if task is not None:
+                try:
+                    await asyncio.wait_for(task, timeout=5)
+                except Exception:
+                    pass
         logger.info("Application shutdown complete.")
 
 
