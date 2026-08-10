@@ -133,6 +133,8 @@ jobs:
   scoreboard:
     name: Scoreboard Check
     runs-on: ubuntu-latest
+    # Klara-ai only: direct pushes to it, or PRs whose head branch is it.
+    if: github.ref == 'refs/heads/Klara-ai' || github.head_ref == 'Klara-ai'
 
     steps:
       - uses: actions/checkout@v4
