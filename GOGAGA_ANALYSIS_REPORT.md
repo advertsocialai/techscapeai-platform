@@ -6,21 +6,30 @@ narrative evidence behind each number lives in `PLATFORM_STATUS.md`, the
 compliance detail in `COMPLIANCE_CHECKLIST.md`, and every blocker ID in
 `BLOCKERS.md`.
 
-Last updated: **2026-08-10** at `32d52ca` (scoreboard-skill install run).
+Last updated: **2026-08-10** at `98f3f3d` (wave-2 run, local-seam checkpoint).
 
-> **The caveat that qualifies every row:** no data has ever travelled from
-> Postgres to a screen (BLK-2 no service-role key, BLK-3 sandbox blocks
-> supabase.co). Percentages mean **built and verified by construction** unless
-> the Live column says otherwise.
+> **The caveat, rewritten 2026-08-10 — data HAS now travelled Postgres→screen.**
+> A local Postgres 16 + pgvector with the real migrations, bridged to the
+> UNMODIFIED app path by a minimal PostgREST shim (`scripts/local_seam/`),
+> carried real rows end-to-end: real signup → real login → lead/customer/
+> booking written via the API → traveller OTP login → `/me/trip` → the real
+> customer-app UI rendered booking `SEAM-BALI-001` in Chromium (0 page
+> errors), and the real dashboard UI rendered the lead on Mission Control and
+> the Journey Board. Cross-token separation returned 401 against real data.
+> **What remains unproven** is the managed-Supabase leg specifically: RLS-as-
+> anon on the live stack (proven separately via MCP probes), service-role
+> behaviors, and PostgREST beyond the shim's measured subset — those still
+> wait on BLK-2/BLK-3. "Live ✅ (seam)" below means proven locally end-to-end;
+> "Live ✅" without qualifier means proven on the deployed/managed stack.
 
 ## All areas — one table
 
 | # | Area | Dashboard | Customer app | Live-verified? | What's missing / blocker |
 |--:|---|---:|---:|:--:|---|
 | 1 | DB | **100%** | **95%** | ✅ schema live, RLS probed as `anon` | −5 customer: `payment_links.customer_id` backfill only covers links whose lead implied a customer |
-| 2 | Backend | **97%** | **85%** | ❌ 0 rows ever served | −3: audio produced, not transmitted (BLK-1). −15: traveller data path never proven live (BLK-2/3) |
+| 2 | Backend | **97%** | **100%** | ✅ (seam) rows served end-to-end | −3 dashboard: audio produced, not transmitted (BLK-1). Customer −15 CLOSED: traveller path proven against real Postgres (OTP login → `/me/trip` → real booking) |
 | 3 | UI | **85%** | **95%** | ⚠️ customer app deploys Ready; dashboard deploy red | Dashboard: 2 real TODOs, 1 feature not on the API. Deploys: BLK-4 |
-| 4 | Auth | **80%** | **90%** | ❌ no login against a real DB | Guards verified in Chromium; token separation proven both directions |
+| 4 | Auth | **100%** | **100%** | ✅ (seam) real logins | The wave-1 deduction ("no login against a real DB") closed: owner signup+login and traveller OTP login both exercised against real Postgres rows; cross-token separation 401 live; guards verified in Chromium |
 | 5 | Validation | **90%** | **90%** | — | Password rules mirror server exactly; 422 crash fixed at every auth call site |
 | 6 | Backend testing | **80%** | **80%** | n/a (local) | 80 tests pass. No coverage metric yet |
 | 7 | Frontend testing | **60%** | **60%** | n/a (local) | 13+13 tests (password mirror, 422 envelope). Missing: component/interaction tests |
@@ -37,7 +46,7 @@ Last updated: **2026-08-10** at `32d52ca` (scoreboard-skill install run).
 | Seam | Built | Live? | The one thing to go live |
 |---|---|:--:|---|
 | Voice turn loop (STT → AI → TTS) | ✅ wired, tested, latency-logged | ❌ audio never transmitted | Plivo creds (BLK-1) |
-| Traveller data path (`/travel/v1/me/*`) | ✅ 5 endpoints, token separation proven | ❌ 0 rows, no DB reachability | Service-role key + network (BLK-2/3) |
+| Traveller data path (`/travel/v1/me/*`) | ✅ 5 endpoints, token separation proven | ✅ (seam) real rows→screen | Managed-Supabase leg only: service-role key + network (BLK-2/3) |
 | Error tracking | ✅ stub transport proven firing | ❌ | `SENTRY_DSN` (BLK-6) |
 | Deployment | ✅ customer app **live-green** | dashboard/API ❌ | Two Vercel Root Directory settings (BLK-4) |
 | CI | ✅ workflow correct (passed runs #15–21) | ❌ | GitHub Actions billing (BLK-5) |
