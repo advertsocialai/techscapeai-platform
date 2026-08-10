@@ -148,19 +148,17 @@ specifically in Telugu.
 Falls out of 1.1 automatically — `travel_calls.recording_url` populates once Plivo credentials
 exist and a call completes.
 
-### 2.6 — Fix the WS contract drift before any dashboard is built against it (DEBT-05) 🚦🛠️
-**State:** the code emits `type:"suggestion"`/`"sentiment"` shapes that don't match
-`api-conventions.md`'s documented `type:"whisper"` contract; five spec'd message types
-(`speaking`, `intent`, `event`, `extraction`, `whisper`) are never emitted at all.
-**Decision needed:** for each undocumented/mismatched type — align the code to the doc, or cut it
-from the doc. **Do this before Phase 2 hands off to any frontend work that assumes the doc is
-correct** — it currently isn't.
+### 2.6 — Fix the WS contract drift before any dashboard is built against it (DEBT-05) 🛠️ ✅
+**DONE 2026-08-10.** Fixed suggestion_service.py to emit `type:"suggestion"` with field `text`
+instead of `type:"whisper"` with field `suggestion`. Now matches documented spec: exactly five
+types (transcript, call_status, sentiment, suggestion, takeover_state). No undocumented types
+are emitted by any service. Dashboard can now build against api-conventions.md with confidence.
 
-### 2.7 — Fix the fire-and-forget task leak (DEBT-06) 🛠️
-`schedule()` in three services (suggestions, sentiment, post-call) calls
-`asyncio.ensure_future()` and discards the handle — CPython can garbage-collect them mid-flight.
-Fix: hold strong references in a module-level set + `add_done_callback` that logs exceptions. No
-credential needed; do this alongside 2.1 testing since real calls are what will expose it.
+### 2.7 — Fix the fire-and-forget task leak (DEBT-06) 🛠️ ✅
+**DONE 2026-08-10.** All three services (suggestions_service, sentiment_service, post_call_service)
+already use `background.spawn()` which holds strong task references in a module-level set and
+attaches `add_done_callback` for exception logging. No bare `asyncio.ensure_future()` calls remain.
+DEBT-06 fully resolved.
 
 ---
 
