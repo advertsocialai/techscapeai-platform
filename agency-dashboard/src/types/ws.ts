@@ -1,3 +1,7 @@
+import type { TakeoverState } from './travel'
+
+export type { TakeoverState }
+
 /**
  * WebSocket message contract for `ws://<host>/ws/calls/{call_id}`.
  *
@@ -50,21 +54,6 @@ export type CallLifecycleStatus = 'active' | 'completed' | 'failed'
  */
 export type CallMode = 'ai' | 'agent' | 'conference'
 
-/**
- * `takeover_state.takeover_state` — the four literals passed to
- * `_broadcast_takeover()` in routers/travel/takeover.py (lines 86/111/134/157).
- *
- * NOTE: the `takeover_state` message type is NOT in api-conventions.md at all.
- * The doc is incomplete here; the code is authoritative.
- *
- * DUPLICATION (deliberate): `types/travel.ts` exports a `TakeoverState` with the
- * identical four members, describing the same `travel_calls.takeover_state`
- * column reached over REST. Both are derived from the same backend source, so
- * they cannot drift silently without one of them contradicting takeover.py.
- * Kept separate so this WS contract module has no dependency on the REST types;
- * collapse them into one shared type if the two files are ever reconciled.
- */
-export type TakeoverState = 'ai' | 'monitoring' | 'coaching' | 'human'
 
 /**
  * `suggestion.mode` — the ternary at suggestion_service.py:137:
