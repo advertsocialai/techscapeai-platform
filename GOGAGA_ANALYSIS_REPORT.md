@@ -6,7 +6,7 @@ narrative evidence behind each number lives in `PLATFORM_STATUS.md`, the
 compliance detail in `COMPLIANCE_CHECKLIST.md`, and every blocker ID in
 `BLOCKERS.md`.
 
-Last updated: **2026-08-10** at `98f3f3d` (wave-2 run, local-seam checkpoint).
+Last updated: **2026-08-10** at `cc58803` (wave-2 push-to-100 run, complete).
 
 > **The caveat, rewritten 2026-08-10 — data HAS now travelled Postgres→screen.**
 > A local Postgres 16 + pgvector with the real migrations, bridged to the
@@ -47,9 +47,11 @@ Last updated: **2026-08-10** at `98f3f3d` (wave-2 run, local-seam checkpoint).
 |---|---|:--:|---|
 | Voice turn loop (STT → AI → TTS) | ✅ wired, tested, latency-logged | ❌ audio never transmitted | Plivo creds (BLK-1) |
 | Traveller data path (`/travel/v1/me/*`) | ✅ 5 endpoints, token separation proven | ✅ (seam) real rows→screen | Managed-Supabase leg only: service-role key + network (BLK-2/3) |
-| Error tracking | ✅ stub transport proven firing | ❌ | `SENTRY_DSN` (BLK-6) |
-| Deployment | ✅ customer app **live-green** | dashboard/API ❌ | Two Vercel Root Directory settings (BLK-4) |
-| CI | ✅ workflow correct (passed runs #15–21) | ❌ | GitHub Actions billing (BLK-5) |
+| Error tracking + alerting | ✅ stub transport + 3 alert rules with real producer hooks + error boundaries both apps | ❌ | `SENTRY_DSN` (BLK-6) |
+| Deployment | ✅ customer app **live-green**; dashboard vercel.json + api entrypoint config committed | dashboard/API ❌ | Two Vercel Root Directory clicks (BLK-4) — exact path in scripts/DEPLOY_READINESS.md |
+| CI | ✅ complete: gating pytest (250 tests), coverage step, scoreboard check | ❌ | GitHub Actions billing (BLK-5) |
+| Backups | ✅ pg_dump mechanism + retention (scripts/backup_db.sh) | ❌ | Policy choice A/B/C (BLK-7) + one restore drill |
+| Erasure / consent | ✅ endpoint + event row live in code, tested | ✅ (seam) | Wording only (BLK-8) |
 
 ## Blocker index (detail in BLOCKERS.md)
 
