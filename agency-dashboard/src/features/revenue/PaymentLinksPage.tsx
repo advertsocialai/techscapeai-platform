@@ -120,7 +120,7 @@ export default function PaymentLinksPage() {
                   Enter an amount greater than 0
                 </span>
               )}
-              <select
+              <select aria-label="Currency"
                 className="input"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}

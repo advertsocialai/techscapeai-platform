@@ -66,7 +66,7 @@ export default function FollowUpsPage() {
           </div>
         </div>
         <div className="toolbar">
-          <select
+          <select aria-label="Filter by follow-up status"
             className="input"
             value={filter}
             onChange={(e) => setFilter(e.target.value as FollowUpStatus | '')}

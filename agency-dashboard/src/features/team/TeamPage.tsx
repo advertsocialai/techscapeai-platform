@@ -108,7 +108,7 @@ export default function TeamPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
+            <select aria-label="Role for new member" className="input" value={role} onChange={(e) => setRole(e.target.value)}>
               {ASSIGNABLE_ROLES.map((r) => (
                 <option key={r.value} value={r.value}>{r.label}</option>
               ))}

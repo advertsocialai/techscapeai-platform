@@ -112,7 +112,7 @@ export default function WhatsAppPage() {
                 value={to}
                 onChange={(e) => setTo(e.target.value)}
               />
-              <select
+              <select aria-label="Message type"
                 className="input"
                 value={type}
                 onChange={(e) => setType(e.target.value as WhatsAppMessageType)}

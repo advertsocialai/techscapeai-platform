@@ -57,7 +57,7 @@ export default function ActivityLogPage() {
           <div className="page-sub">{rows.length} most recent entries</div>
         </div>
         <div className="toolbar">
-          <select
+          <select aria-label="Filter by entity type"
             className="input"
             value={entity}
             onChange={(e) => setEntity(e.target.value as ActivityEntityType | '')}

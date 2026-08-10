@@ -214,6 +214,7 @@ export default function LoginPage() {
               />
               <button
                 onClick={() => setShowPw(!showPw)}
+                aria-label={showPw ? 'Hide password' : 'Show password'}
                 style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', padding: 4 }}
               >
                 <EyeIcon open={showPw} />

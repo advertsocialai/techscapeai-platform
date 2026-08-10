@@ -131,7 +131,7 @@ export default function JourneyBoardPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select
+          <select aria-label="Filter by qualification"
             className="input"
             value={qualification}
             onChange={(e) => setQualification(e.target.value as LeadQualification | '')}

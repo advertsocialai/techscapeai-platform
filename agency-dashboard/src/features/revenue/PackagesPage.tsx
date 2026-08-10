@@ -99,7 +99,7 @@ export default function PackagesPage() {
           <div className="page-sub">{packages.length} in the catalogue</div>
         </div>
         <div className="toolbar">
-          <select
+          <select aria-label="Filter by category"
             className="input"
             value={category}
             onChange={(e) => setCategory(e.target.value as PackageCategory | '')}
@@ -133,12 +133,12 @@ export default function PackagesPage() {
                   {days.trim() !== '' && !daysValid ? 'Days must be a whole number above 0' : 'Price must be a number (0 or more)'}
                 </span>
               )}
-              <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <select aria-label="Currency" className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                 <option value="INR">INR</option>
                 <option value="USD">USD</option>
                 <option value="CAD">CAD</option>
               </select>
-              <select
+              <select aria-label="New package category"
                 className="input"
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value as PackageCategory | '')}

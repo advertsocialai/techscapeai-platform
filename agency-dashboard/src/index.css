@@ -10,12 +10,18 @@
   --amber: #f59e0b;
   --amber-dim: rgba(245, 158, 11, 0.12);
   --blue: #3b82f6;
+  --blue-text: #7cabfa;  /* text-on-dark variant of --blue: clears 4.5:1 where #3b82f6 (≈3.7:1) fails */
   --blue-dim: rgba(59, 130, 246, 0.12);
   --red: #ef4444;
   --red-dim: rgba(239, 68, 68, 0.12);
   --text: #ffffff;
-  --text-dim: rgba(255, 255, 255, 0.45);
-  --text-xs: rgba(255, 255, 255, 0.25);
+  /* Was 0.45 — failed WCAG AA (≈3.9:1) for the small text that uses it
+     (stat labels, .t3 headings, state reasons, user-pill role line). */
+  --text-dim: rgba(255, 255, 255, 0.60);
+  /* Was 0.25 — axe-core failed WCAG AA 4.5:1 on every page for nav section
+     labels and other small text using this token. 0.62 white on the darkest
+     surface in use clears 4.5:1 while staying visibly muted. */
+  --text-xs: rgba(255, 255, 255, 0.62);
   color-scheme: dark;
 }
 
@@ -293,7 +299,7 @@ button {
 .badge.blue {
   background: var(--blue-dim);
   border: 1px solid rgba(59, 130, 246, 0.25);
-  color: var(--blue);
+  color: var(--blue-text);
 }
 
 .badge.white {
@@ -559,7 +565,7 @@ button {
 
 .badge.live { color: var(--green); background: var(--green-dim); border-color: var(--green-border); }
 .badge.mode-keyword { color: var(--amber); background: var(--amber-dim); }
-.badge.mode-claude { color: var(--blue); background: var(--blue-dim); }
+.badge.mode-claude { color: var(--blue-text); background: var(--blue-dim); }
 
 /* Connection status. Tone is carried by BOTH colour and text — colour alone
    would leave the state invisible to anyone who cannot distinguish them. */
@@ -596,7 +602,7 @@ button {
 .live-call-id { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
 .live-call-meta { font-size: 12px; color: var(--text-dim); }
 .live-call-sentiment { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
-.live-call-open { display: block; margin-top: 12px; font-size: 12px; color: var(--blue); }
+.live-call-open { display: block; margin-top: 12px; font-size: 12px; color: var(--blue-text); }
 
 .live-mini-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .live-mini-item {
@@ -674,7 +680,7 @@ button {
   color: var(--text); border-radius: 8px; padding: 7px 10px;
   font-size: 12px; font-family: inherit; min-width: 160px;
 }
-.input:focus { outline: none; border-color: var(--blue); }
+.input:focus { outline: none; border-color: var(--blue-text); }
 
 .kan-col.drag-over { border-color: var(--blue); background: var(--blue-dim); }
 .kan-empty { font-size: 11px; color: var(--text-xs); margin: 8px 0 0; text-align: center; }
@@ -770,7 +776,7 @@ button {
 
 /* ── FE Phase 5: reports, cost, team ────────────────────────────────────── */
 
-.btn.ghost.active { border-color: var(--blue); color: var(--blue); }
+.btn.ghost.active { border-color: var(--blue); color: var(--blue-text); }
 
 .warning-list { display: grid; gap: 6px; margin-bottom: 14px; }
 .warning-item {
@@ -799,9 +805,9 @@ button {
   background: transparent; border: 1px solid var(--border);
   color: var(--text-dim); font-size: 11px; font-family: inherit;
 }
-.lang-chip.on { border-color: var(--blue); color: var(--blue); background: var(--blue-dim); }
+.lang-chip.on { border-color: var(--blue); color: var(--blue-text); background: var(--blue-dim); }
 .lang-chip.primary { border-color: var(--green); color: var(--green); background: var(--green-dim); }
-.chip-tag { font-size: 9px; opacity: 0.8; }
+.chip-tag { font-size: 9px; }  /* opacity stacked on dim parent color failed contrast */
 
 .form-stack { display: grid; gap: 10px; }
 .stack-field { display: grid; gap: 4px; font-size: 11px; color: var(--text-dim); }
@@ -816,7 +822,7 @@ button {
 }
 .event-item.evt-takeover { border-left-color: var(--amber); }
 .event-item.evt-done { border-left-color: var(--green); }
-.event-item.evt-info { border-left-color: var(--blue); }
+.event-item.evt-info { border-left-color: var(--blue-text); }
 .event-head { display: flex; justify-content: space-between; gap: 10px; }
 .event-label { font-size: 12px; }
 .event-time { font-size: 11px; color: var(--text-xs); white-space: nowrap; }
