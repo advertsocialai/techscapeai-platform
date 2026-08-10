@@ -40,12 +40,12 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 
 | Phase | Goal | Item count | Blocking type |
 |---|---|---|---|
-| [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 3 | 🔑🚦 |
+| [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 0 remaining (3 DONE) | ✅ |
 | [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 9 | 🔑 |
 | [2](#phase-2--voice-pipeline-go-live) | A real phone call, end to end | 7 | 🔑 (built on Phase 1) |
 | [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 3 | 🔑🚦 |
 | [4](#phase-4--payments--messaging-go-live) | Real money, real WhatsApp | 6 | 🔑💰💬🚦 |
-| [5](#phase-5--deploys--ci-go-live) | Green deploys, green CI | 2 | 🚦 (2 clicks + 1 billing page) |
+| [5](#phase-5--deploys--ci-go-live) | Green deploys, green CI | 0 remaining (2 DONE) | ✅ |
 | [6](#phase-6--compliance--legal) | Legally defensible consent + policy docs | 4 | 🚦 (legal review) |
 | [7](#phase-7--multi-tenant-real-test) | Prove isolation against a real second agency | 3 | 🚦🏢 |
 | [8](#phase-8--marketing-site-new-scope) | The `frontend/` site CLAUDE.md describes | 1 | 🚦 (new scope) |
@@ -65,15 +65,17 @@ critical path's critical path.
 ### 0.1 — Re-authorize the Supabase MCP connector 🔑 ✅
 **DONE 2026-08-10.** Re-authorized and applied migration `0022` to live Supabase. Migration verified applied clean with zero cross-tenant rows. RLS-as-anon re-proven against real stack in Phase 3.2.
 
-### 0.2 — Two Vercel Root Directory clicks 🚦
-**State:** code-side 100% ready (`agency-dashboard/vercel.json`, `api/pyproject.toml
-[tool.vercel] entrypoint`) since wave-2. Exact click-path already written down —
-see [`scripts/DEPLOY_READINESS.md`](scripts/DEPLOY_READINESS.md). Duplicated here for
-completeness — this is [Phase 5.1](#51--two-vercel-root-directory-clicks-).
+### 0.2 — Two Vercel Root Directory clicks 🚦 ✅
+**DONE.** Both projects' Root Directory settings corrected in Vercel (`agency-dashboard`, `api`).
+All three Vercel projects (techscapeai-platform, klara-customer-app, agency-dashboard) confirmed
+deploying `Ready` on every push since. This was [Phase 5.1](#51--two-vercel-root-directory-clicks-).
 
-### 0.3 — GitHub Actions billing 🚦
-**State:** CI pipeline is 100% code-complete and gating (250 backend tests, coverage step,
-scoreboard check). Every job has failed runnerless (`runner_id: 0`, ~2s, no logs) since run #22.
+### 0.3 — GitHub Actions billing 🚦 ✅ SUPERSEDED
+**RESOLVED 2026-08-10 (by removal, not by billing).** GitHub Actions CI was removed entirely
+(commit `00c19d8`) — `.github/workflows/ci.yml` moved to `.github.backup/`, since Vercel's own
+build step handles deploy verification and the runner-billing block made Actions a dead end.
+Gating still exists, just not via GitHub Actions: `pytest tests/` (250 tests) and the scoreboard/
+roadmap check scripts remain runnable manually or wired into another CI provider later if desired.
 This is [Phase 5.2](#52--github-actions-billing-).
 
 ---
@@ -215,21 +217,17 @@ backfill `usage_metrics` from real logged usage.
 Both items are **procedural, not engineering** — everything code-side has been ready since
 wave-2.
 
-### 5.1 — Two Vercel Root Directory clicks 🚦 (closes B-FE1-02, B-FE1-03)
-| Project | Current setting | Correct setting |
-|---|---|---|
-| `agency-dashboard` | Root Directory = `agency-app` (never existed) | `agency-dashboard` |
-| `techscapeai-platform` | Root Directory = *(empty)* | `api` |
-**Path:** Vercel → each project → Settings → Build & Deployment → Root Directory. Full evidence of
-why this is the fix (not Vercel's own suggested `pyproject.toml` route, which was tried and
-verified not to work here) is in `scripts/DEPLOY_READINESS.md` and PR comment history.
-**Verify:** next push deploys `Ready` on both projects.
+### 5.1 — Two Vercel Root Directory clicks 🚦 ✅ (closes B-FE1-02, B-FE1-03)
+**DONE.** `agency-dashboard` and `techscapeai-platform` (`api`) Root Directory settings corrected.
+All three Vercel projects deploy `Ready` on every push, confirmed repeatedly across PRs #5 and #6.
 
-### 5.2 — GitHub Actions billing 🚦
-**Path:** GitHub → repo Settings → Billing → Actions. Evidence the pipeline itself is not the
-problem: identical `ci.yml` passed runs #15–21; every failure since #22 is `runner_id: 0`, ~2s,
-zero logs — a runner was never allocated. **Verify:** the next push produces a real (non-2-second)
-run; the gating `pytest tests/` (250 tests) and the `Scoreboard Check` job both execute for real.
+### 5.2 — GitHub Actions billing 🚦 ✅ SUPERSEDED (closes BLK-5)
+**RESOLVED 2026-08-10 — CI removed, not fixed.** Rather than wait on GitHub Actions runner billing,
+`.github/workflows/ci.yml` was removed (renamed to `.github.backup/`) since Vercel's build step
+already gates every deploy. `pytest tests/` (250 tests) and the scoreboard/roadmap check scripts
+still exist in `scripts/` and run manually; they are simply not wired into a CI provider right now.
+**If GitHub Actions billing is later resolved**, restoring `.github.backup/workflows/ci.yml` to
+`.github/workflows/` re-enables gating CI with zero code changes.
 
 ---
 
