@@ -206,11 +206,8 @@ WhatsApp's 24-hour customer-service window and the provider ABC correctly refuse
 for it. **Fix:** register a Meta-approved report **template**, then switch delivery to
 `send_template()`. Start this early — Meta review is measured in days, not minutes.
 
-### 4.4 — Wire an email transport for report schedules (B-P4-08) 🛠️
-**State:** `RESEND_API_KEY` already exists in config (used by `auth.py`'s password-reset flow) but
-no report mailer is wired — `delivery_channel='email'` returns `status: "unavailable"`.
-**Fix (zero new credential — reuses 1.9's neighbor, already in `.env`):** point the report sender
-at the same dependency-free Resend HTTP call `auth.py` already uses. This is code-only.
+### 4.4 — Wire an email transport for report schedules (B-P4-08) 🛠️ ✅
+**DONE 2026-08-10.** Wired Resend email delivery in `report_scheduler.py` — reuses existing `RESEND_API_KEY` (no new credential). Report delivery channel now supports email, WhatsApp, and dry-run modes. Matches auth.py password-reset pattern for HTTP payload construction.
 
 ### 4.5 — Decide the PDF story (B-P4-03) 🚦
 `GET /reports/{id}/pdf` currently isn't a true PDF — no `reportlab`/`weasyprint` is installed.
