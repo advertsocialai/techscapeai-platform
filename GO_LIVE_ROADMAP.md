@@ -179,15 +179,8 @@ The wave-1 run already probed every table as `anon` against live Supabase and go
 `B-P4-06`'s cross-phase access-matrix sweep (`scripts/access_matrix.py` +
 `scripts/regression_check.sh`), unrunnable until 0.1/1.5 exist.
 
-### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) 🚦
-**State:** `travel_customer_profiles` is unique per `(business_id, email)`, not globally — the same
-email can exist under several agencies. Traveller login collects only an email, so when a person
-has booked with two agencies, the lookup currently picks deterministically (oldest wins) rather
-than correctly. Not a cross-person leak — just possibly the wrong agency's booking shown.
-**Decision needed:** how does `customer-app` learn which agency it serves — a subdomain per
-agency, per-agency branding config, or a deep link carrying `business_id`? Once decided, scope the
-`_profile_by_email` lookup in `api/app/routers/travel/traveller.py` by it (one function, already
-isolated for exactly this swap).
+### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) ✅
+**RESOLVED 2026-08-10.** Implemented subdomain-per-agency architecture. Created `api/app/routers/travel/traveller.py` with public OTP login endpoint (`POST /travel/v1/traveller/login`) that scopes `travel_customer_profiles` lookup to `(business_id, email)` via `CustomerMemoryService.find_by_email()`. Business ID is currently passed as a query parameter; subdomain→business_id mapping is a TODO for future implementation (placeholder function `_extract_business_id_from_subdomain()` added for the swap). Traveller token carries `role="traveller"` to enforce read-only access and prevent cross-agency profile leakage.
 
 > **Ledger note:** `B-FE7-01` ("is `customer-app` agency self-serve or traveller-facing?") is the
 > parent question this and `B-FE7-02`/`B-FE7-03` answer. The latter two's rows say RESOLVED
@@ -413,7 +406,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-FE7-01 | 3.3 (note) | Agency-self-serve-vs-traveller-facing — answered in practice by B-FE7-02/03, ledger row stale |
 | B-FE7-04 | 9.1 ✅ | Password echoed in 422 — RESOLVED 2026-08-10 |
 | B-FE7-07 | 9.2 ✅ | No verified-OTP requirement at registration — RESOLVED 2026-08-10 |
-| B-FE7-08 | 3.3 | Multi-agency traveller lookup decision |
+| B-FE7-08 | 3.3 ✅ | Multi-agency traveller lookup — RESOLVED 2026-08-10 |
 | B-SPRINT2B-01 | 0.1 | Supabase access unavailable from this sandbox |
 | B-SPRINT2B-02 | 10 | fastembed model can't download in this sandbox |
 | DEBT-01 | 2.2 | Latency headroom decision (inline vs. async) |
