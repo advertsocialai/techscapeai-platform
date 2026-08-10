@@ -41,6 +41,19 @@ referenced in it must update `GO_LIVE_ROADMAP.md` in the same commit. Load
 `scripts/check_roadmap_updated.sh` + `scripts/check_roadmap_orphans.py` (also
 CI jobs). Deliberate no-ops say "no roadmap impact" in the commit message.
 
+**Standing automation (not repo content — documented here so it isn't forgotten):**
+a weekly Routine, `trig_01HDAtTFMngH7VvzkD8nkiqW` ("Weekly GoGaga blocker audit
+sweep"), fires every Monday 03:00 UTC. It clones this repo fresh, audits `api/`,
+both frontends, and `supabase/migrations/` for genuinely new stubs/gaps/dead
+call sites, and — only if it finds something real — logs it into `BLOCKERS.md`
+and `GO_LIVE_ROADMAP.md` per the rules above, self-verifies with the three
+check scripts, and pushes to `Klara-ai`. A null week produces no commit and no
+message — silence means nothing new was found, not that the sweep didn't run.
+Routines live outside git entirely (scheduler infrastructure, not a file), so
+this paragraph is the only place this fact persists — to view, change, or
+cancel it: `list_triggers`/`update_trigger`/`delete_trigger` (Claude Code
+Remote tools) or the Routines page on claude.ai, never a repo search.
+
 ---
 
 # TechScape AI — Design System Rules (Figma ↔ Code)

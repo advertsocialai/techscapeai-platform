@@ -454,6 +454,12 @@ subject to the `gogaga-scoreboard` skill's per-commit update rule. When a phase 
 3. Strike the line here or move it to a "Closed" section — this file should always show the
    **current** shortest path to 100% live, not a history of what used to block it.
 
+**This is now partly automated.** A weekly Routine (`trig_01HDAtTFMngH7VvzkD8nkiqW`, Mondays
+03:00 UTC, documented in `CLAUDE.md`) runs exactly this sweep — audits the codebase for genuinely
+new stubs/gaps, and if it finds one, performs steps 1–2 above itself before pushing. It does not
+replace an in-session update when a session resolves something directly; it exists to catch drift
+between sessions.
+
 ---
 
 ## Closed this phase (Phase 9-shaped: zero-credential work, log kept per the skill's convention)
