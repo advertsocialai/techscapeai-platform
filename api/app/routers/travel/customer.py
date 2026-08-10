@@ -5,11 +5,18 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
+from app.core.deps import require_role
 from app.schemas.travel import CustomerProfileIn, CustomerProfileOut
 from app.services.travel import CustomerMemoryService
+from app.services.travel import erasure_service
 from app.routers.techscape._deps import require_business
 
 router = APIRouter()
+
+# D-3 right-to-erasure is destructive-adjacent: admin tier only
+# (require_role("admin") == admin/super_admin — hierarchy per core/deps.py,
+# same convention as the other travel routers that gate writes).
+_admin = require_role("admin")
 
 
 class _PastTrip(BaseModel):
@@ -54,6 +61,30 @@ def get_profile(profile_id: UUID, biz: dict = Depends(require_business)):
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
     return row
+
+
+@router.delete("/{customer_id}/personal-data")
+def erase_personal_data(customer_id: UUID, user: dict = Depends(_admin)):
+    """DPDP right-to-erasure (COMPLIANCE_CHECKLIST.md D-3).
+
+    ANONYMIZES (never deletes) every personal-data row for this customer —
+    see erasure_service.py's module docstring for the honest table-by-table
+    enumeration. Money rows are never deleted (invoice/audit integrity).
+    409 when a booking is active or a call is live (Gowtham-owned edge
+    cases — refused, not guessed). Out-of-scope/unknown id → 404, never 403.
+    One activity_log row records the erasure.
+    """
+    try:
+        summary = erasure_service.erase_customer(
+            str(customer_id),
+            user["business_id"],
+            actor_id=user.get("id"),
+        )
+    except erasure_service.ActiveRecordConflict as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, exc.detail)
+    if summary is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    return {"ok": True, "erased": summary}
 
 
 @router.post("/{profile_id}/past-trips", response_model=CustomerProfileOut)

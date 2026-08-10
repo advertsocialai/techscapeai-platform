@@ -96,9 +96,23 @@ def speak_xml(text: str, *, voice: str = "WOMAN", language: str = "en-US") -> st
 # BEFORE the stream opens — a caller who hangs up on hearing it is never
 # transcribed at all. Wording is deliberately plain; legal review of the exact
 # text is Gowtham's (BLK-8) — its PRESENCE is not optional.
+# PENDING LEGAL REVIEW (BLK-8) — mechanism final, wording placeholder.
+# The MECHANISM (announcement plays before the stream opens; a
+# 'consent_disclosure_played' event row is written to travel_call_events by
+# the answer webhook, payload {language, wording_version}) is done and stays.
+# Only the TEXT below and its translations (C-2: Telugu/Hindi versions are
+# still missing — this plays in English regardless of ai_config.languages)
+# are awaiting Gowtham/legal sign-off. When the wording changes, bump
+# CONSENT_WORDING_VERSION so old call events remain attributable to the
+# exact text that was actually played.
 CONSENT_ANNOUNCEMENT = (
     "This call may be recorded and transcribed for quality and service purposes."
 )
+# Version tag persisted with every consent event (travel_call_events.payload).
+# "draft-1" = the pre-legal-review engineering copy above.
+CONSENT_WORDING_VERSION = "draft-1"
+# The announcement currently plays in English only (C-2 gap, BLK-8).
+CONSENT_ANNOUNCEMENT_LANGUAGE = "en"
 
 
 def stream_xml(*, stream_url: str, announce_consent: bool = True) -> str:
@@ -223,3 +237,11 @@ def log_voice_turn(
         "tts_ttfb_ms=%d total_ms=%d engine=%s lang=%s",
         call_id, seq, stt_ms, llm_ttft_ms, llm_total_ms, tts_ttfb_ms, total_ms, engine, lang,
     )
+    # Observability hook: feed the latency-budget alert rule (alerting.py
+    # rule 2 — median total_ms vs the 1.1s SLO). Local import + broad except:
+    # telemetry must never be able to break a live call.
+    try:
+        from app.core import alerting
+        alerting.observe_voice_turn(total_ms=total_ms)
+    except Exception:  # pragma: no cover
+        logger.exception("voice-turn alerting hook failed")

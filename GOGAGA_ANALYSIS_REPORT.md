@@ -38,8 +38,8 @@ Last updated: **2026-08-10** at `98f3f3d` (wave-2 run, local-seam checkpoint).
 | 10 | CI/CD | **70% code / 0% live** | same | ❌ no runners allocated | Workflow proven correct; failure = Actions billing (BLK-5) |
 | 11 | Observability | **70% stubbed** | **65% stubbed** | ❌ stub transport only | Going live = `SENTRY_DSN` (BLK-6). No alerting/uptime |
 | 12 | Accessibility | **70%** | **75%** | — | axe-core: all scanned pages 0 violations. Not claimed: full-app audit, focus/keyboard testing |
-| 13 | Compliance | **60% assessed** | **60% assessed** | — | 6 ✅ · 3 gaps (consent event row, ToS/Privacy docs, erasure path) · 4 decisions (BLK-8 etc.) |
-| 14 | Docs / secrets | **90%** | **90%** | — | CLAUDE.md reconciled; secrets audit clean; scoreboard self-maintenance now automated (gogaga-scoreboard skill + `scripts/check_scoreboard_updated.sh` CI check). Remaining: backup policy undecided (BLK-7) |
+| 13 | Compliance | **90% (mechanisms 100%)** | **90% (mechanisms 100%)** | — | All 3 buildable gaps CLOSED: consent event row written when answer XML is served; DPDP erasure endpoint anonymizes 10 tables (money kept, activity_log'd, 409 on edge cases); ToS/Privacy DRAFT skeletons with schema-derived facts. The remaining 10 is not code: legal wording + 4 decisions (BLK-8, C-4, D-6) |
+| 14 | Docs / secrets | **95% (mechanism 100%)** | **95% (mechanism 100%)** | — | CLAUDE.md reconciled; secrets audit clean; scoreboard self-maintenance automated. Backup MECHANISM built (`scripts/backup_db.sh` + BACKUP_OPTIONS.md) — BLK-7 is now a one-line A/B/C choice plus one restore drill, the only remaining 5 |
 
 ## Stubbed vs live — the seams
 
