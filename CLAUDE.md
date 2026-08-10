@@ -25,7 +25,11 @@ do not import these values into them.
 **Scoreboard rule:** `GOGAGA_ANALYSIS_REPORT.md` at the repo root is the
 combined completeness scoreboard for both apps. Any change that moves an
 area's completeness — up or down — must update `GOGAGA_ANALYSIS_REPORT.md`
-in the same commit.
+in the same commit. The full rule lives in
+`.claude/skills/gogaga-scoreboard/` — load that skill at session start
+alongside `gogaga-backend`/`gogaga-migrations`/`gogaga-verifier`; the
+mechanical safety net is `scripts/check_scoreboard_updated.sh` (also a CI
+job). Deliberate no-ops say "no scoreboard impact" in the commit message.
 
 ---
 

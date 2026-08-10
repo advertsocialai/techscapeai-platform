@@ -6,7 +6,7 @@ narrative evidence behind each number lives in `PLATFORM_STATUS.md`, the
 compliance detail in `COMPLIANCE_CHECKLIST.md`, and every blocker ID in
 `BLOCKERS.md`.
 
-Last updated: **2026-08-09** at `21d4775` (push-to-100% run).
+Last updated: **2026-08-10** at `32d52ca` (scoreboard-skill install run).
 
 > **The caveat that qualifies every row:** no data has ever travelled from
 > Postgres to a screen (BLK-2 no service-role key, BLK-3 sandbox blocks
@@ -30,7 +30,7 @@ Last updated: **2026-08-09** at `21d4775` (push-to-100% run).
 | 11 | Observability | **70% stubbed** | **65% stubbed** | ❌ stub transport only | Going live = `SENTRY_DSN` (BLK-6). No alerting/uptime |
 | 12 | Accessibility | **70%** | **75%** | — | axe-core: all scanned pages 0 violations. Not claimed: full-app audit, focus/keyboard testing |
 | 13 | Compliance | **60% assessed** | **60% assessed** | — | 6 ✅ · 3 gaps (consent event row, ToS/Privacy docs, erasure path) · 4 decisions (BLK-8 etc.) |
-| 14 | Docs / secrets | **85%** | **85%** | — | CLAUDE.md reconciled; secrets audit clean; backup policy undecided (BLK-7) |
+| 14 | Docs / secrets | **90%** | **90%** | — | CLAUDE.md reconciled; secrets audit clean; scoreboard self-maintenance now automated (gogaga-scoreboard skill + `scripts/check_scoreboard_updated.sh` CI check). Remaining: backup policy undecided (BLK-7) |
 
 ## Stubbed vs live — the seams
 

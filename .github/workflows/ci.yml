@@ -123,6 +123,31 @@ jobs:
         continue-on-error: true
 
   # ──────────────────────────────────────────────
+  # Scoreboard safety net
+  # A commit touching scoring-relevant paths must update
+  # GOGAGA_ANALYSIS_REPORT.md in the same commit or declare
+  # "no scoreboard impact" in its message. Rule + rationale:
+  # .claude/skills/gogaga-scoreboard/SKILL.md. Added while Actions
+  # billing is blocked (BLK-5) so it is live the moment runners return.
+  # ──────────────────────────────────────────────
+  scoreboard:
+    name: Scoreboard Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check scoreboard rule
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            scripts/check_scoreboard_updated.sh "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            scripts/check_scoreboard_updated.sh HEAD
+          fi
+
+  # ──────────────────────────────────────────────
   # Backend Docker Build
   # Dockerfile lives at repo root but is written to run `pip install -r
   # requirements.txt` + `uvicorn app.main:app` against the api/ layout
