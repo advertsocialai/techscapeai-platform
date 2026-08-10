@@ -97,10 +97,10 @@ specifically so this would be true.
 |---|---|---|---|---|
 | 1.1 | 🔑 Plivo | `PLIVO_AUTH_ID`, `PLIVO_AUTH_TOKEN`, `PLIVO_PHONE_NUMBER`, `PUBLIC_BASE_URL` | Real inbound/outbound calls, audio playback ([BLK-1](#reference-blocker-index), B-P2-01) | Webhook signature check fails open when unset; TTS bytes produced but never transmitted |
 | 1.2 | 🔑 Deepgram + Sarvam | `DEEPGRAM_API_KEY`, `SARVAM_API_KEY` | Real STT (English via Deepgram, Telugu via Sarvam Saarika) (B-P2-03, B-P3-05) | `transcribe_utterance()` returns a stub transcript |
-| 1.3 | 🔑 Anthropic | `ANTHROPIC_API_KEY` | Real conversation turns, real-time suggestions, post-call summaries, real sentiment (B-P2-04, B-P3-02/03, DEBT-07) | `ai_engine.run_turn()` returns a heuristic reply; sentiment is a clamped constant |
+| 1.3 | 🔑 Anthropic | `ANTHROPIC_API_KEY` | Real conversation turns, real-time suggestions, post-call summaries, real sentiment, and — as a direct consequence — real report content (B-P2-04, B-P3-02, B-P3-03, DEBT-07, B-P4-05: report sentiment/summaries stop being the flat `lead_score=40` constant the moment this key exists) | `ai_engine.run_turn()` returns a heuristic reply; sentiment is a clamped constant |
 | 1.4 | 🔑 ElevenLabs | `ELEVENLABS_API_KEY` | Real TTS synthesis + barge-in latency (B-P2-05) | `synthesize_speech()` returns silence |
 | 1.5 | 🔑 Supabase service role | `SUPABASE_SERVICE_ROLE_KEY` | The managed-Supabase leg of the data path — RLS-as-anon live, service-role writes ([BLK-2](#reference-blocker-index)) | The app path itself is already proven via the local seam (`scripts/local_seam/`) — this closes only the "against the real host" half |
-| 1.6 | 🔑 Redis | `REDIS_URL` | Multi-worker rate limiting AND multi-worker live-call feed/JTI consistency in ONE variable — both already have graceful in-memory fallback wired | Both features work today, per-process only |
+| 1.6 | 🔑 Redis | `REDIS_URL` | Multi-worker rate limiting AND multi-worker live-call feed/JTI consistency in ONE variable (B-P2-06, B-P3-04, DEBT-02 — same root cause, one fix) — both already have graceful in-memory fallback wired | Both features work today, per-process only |
 | 1.7 | 🔑 Razorpay | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Real payment links (B-P4-01) — see [Phase 4.1](#41--one-real-razorpay-payment-link--) for the human-confirmation gate that follows | `stub://` links; full status machine already runs against real DB rows |
 | 1.8 | 🔑 WhatsApp/Meta | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` (or BSP equivalent) | Real WhatsApp sends (B-P4-02) — see [Phase 4.2](#42--one-real-whatsapp-send--) | Writes to `whatsapp_outbox`, calls nothing |
 | 1.9 | 🔑 Sentry | `SENTRY_DSN` (api), `VITE_SENTRY_DSN` (both frontends) + `pip install sentry-sdk` + `npm install @sentry/browser` in both apps | Live error tracking + the wave-2 alerting rules firing for real ([BLK-6](#reference-blocker-index)) | Stub transport: events logged + counted, nothing leaves the process |
@@ -115,7 +115,7 @@ one authenticated GET), then the credential-specific test named in its BLOCKERS.
 Depends on **1.1, 1.2, 1.3, 1.4** (Plivo + STT + Claude + TTS). This is "Phase 2B" in the ledger's
 own numbering — it never ran.
 
-### 2.1 — Stand up the MPC leg 🔑
+### 2.1 — Stand up the MPC leg 🔑 (closes B-P2-02, B-P3-01)
 **Steps:**
 1. With 1.1–1.4 set, expose the API publicly (`PUBLIC_BASE_URL` — ngrok for a first test, a real
    domain for production).
@@ -125,6 +125,11 @@ own numbering — it never ran.
    → played back over the live call.
 **Verify:** the call completes with an audible AI reply; `travel_calls`/`travel_transcripts` rows
 exist; grep the logs for `VOICE_TURN` and confirm per-hop latencies are populated.
+
+> **Ledger note:** `DEBT-04` ("`ai_engine.run_turn()` has zero call sites") describes the exact
+> defect `DEBT-20` fixed and marked RESOLVED — `DEBT-04`'s own row was never flipped when `DEBT-20`
+> superseded it. No code action needed here; `BLOCKERS.md` should mark `DEBT-04` RESOLVED
+> (see `DEBT-20`) the next time that file is touched.
 
 ### 2.2 — Measure headroom, decide inline vs. async (DEBT-01) 🚦
 Once 2.1 produces a real `headroom_ms` baseline: if ≥300ms, upgrade T3 (suggestions)/T4 (sentiment)
@@ -168,9 +173,11 @@ Depends on **0.1** (MCP re-auth) and **1.5** (service-role key).
 `supabase/migrations/0022_payment_links_customer_backfill_exhaustive.sql` (verification queries
 are in the file's own header — cross-tenant check must return 0).
 
-### 3.2 — Re-prove RLS-as-anon on the live stack 🔑
+### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 (closes B-P4-06)
 The wave-1 run already probed every table as `anon` against live Supabase and got denied on all
-44. Re-run that probe after 3.1 to confirm nothing regressed.
+44. Re-run that probe after 3.1 to confirm nothing regressed — this is also the live-DB half of
+`B-P4-06`'s cross-phase access-matrix sweep (`scripts/access_matrix.py` +
+`scripts/regression_check.sh`), unrunnable until 0.1/1.5 exist.
 
 ### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) 🚦
 **State:** `travel_customer_profiles` is unique per `(business_id, email)`, not globally — the same
@@ -181,6 +188,12 @@ than correctly. Not a cross-person leak — just possibly the wrong agency's boo
 agency, per-agency branding config, or a deep link carrying `business_id`? Once decided, scope the
 `_profile_by_email` lookup in `api/app/routers/travel/traveller.py` by it (one function, already
 isolated for exactly this swap).
+
+> **Ledger note:** `B-FE7-01` ("is `customer-app` agency self-serve or traveller-facing?") is the
+> parent question this and `B-FE7-02`/`B-FE7-03` answer. The latter two's rows say RESOLVED
+> (traveller-facing, OTP-based identity) but `B-FE7-01`'s own row was never flipped —
+> `BLOCKERS.md` should mark it RESOLVED-by-B-FE7-02/03 the next time that file is touched. Not a
+> live blocker; `B-FE7-08` above is the one genuinely open piece of the traveller-identity question.
 
 ---
 
@@ -227,7 +240,7 @@ backfill `usage_metrics` from real logged usage.
 Both items are **procedural, not engineering** — everything code-side has been ready since
 wave-2.
 
-### 5.1 — Two Vercel Root Directory clicks 🚦
+### 5.1 — Two Vercel Root Directory clicks 🚦 (closes B-FE1-02, B-FE1-03)
 | Project | Current setting | Correct setting |
 |---|---|---|
 | `agency-dashboard` | Root Directory = `agency-app` (never existed) | `agency-dashboard` |
@@ -346,6 +359,8 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 
 | ID | One-line fix |
 |---|---|
+| B-P3-07 | Local dev only (not this sandbox, not production): `colima start && supabase start -x vector,logflare` before running regression checks against a local stack |
+| DEBT-08 | `WebSocketDisconnect` on the media-stream handler discards all buffered audio and marks the call `failed` — run the same stop-handler path on disconnect so an abrupt hangup (common on mobile) doesn't lose the whole call's data |
 | DEBT-09 | Keyword matching uses unanchored substrings (`"may"` fires on *maybe*) — switch to `\b`-bounded regex |
 | DEBT-10 | WhatsApp 24h session-window state lives in an in-process dict — persist to Postgres/Redis so it's correct under multiple workers |
 | DEBT-11 | `fx_rate_at()` returning NULL pre-snapshot is correct, but nothing forces callers to handle it — make the rollup endpoint fail loudly instead of silently dropping rows |
@@ -361,30 +376,71 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 
 ## Reference: blocker index
 
-Every ID mentioned above, one line, cross-referenced to `BLOCKERS.md` for full detail.
+Every ID mentioned above, one line, cross-referenced to `BLOCKERS.md` for full detail. **IDs are
+listed individually, never as a range or slash-join** — `scripts/check_roadmap_updated.sh`'s
+orphan check parses this table literally, and a shorthand like `B-P2-01…06` hides four IDs from it.
+Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this file.
 
 | ID | Phase | What it is |
 |---|---|---|
-| BLK-1 | 1.1 / 2 | No Plivo credentials |
-| BLK-2 | 1.5 / 3 | No Supabase service-role key |
-| BLK-3 | 0 / 3 | Sandbox network policy blocks supabase.co (environment, not Gowtham) |
+| BLK-1 | 1.1, 2.1 | No Plivo credentials |
+| BLK-2 | 1.5, 3 | No Supabase service-role key |
+| BLK-3 | 0.1, 3 | Sandbox network policy blocks supabase.co (environment, not Gowtham) |
 | BLK-4 | 5.1 | Two Vercel Root Directory settings |
 | BLK-5 | 5.2 | GitHub Actions billing |
 | BLK-6 | 1.9 | No SENTRY_DSN |
 | BLK-7 | 6.3 | Backup policy undecided |
 | BLK-8 | 6.1 | Consent wording legal review |
 | BLK-9 | 8.1 | Marketing site scope |
-| B-P2-01…06 | 1, 2 | Voice-pipeline credentials (Plivo/STT/Claude/TTS/Redis) |
+| B-P2-01 | 1.1 | Plivo credentials (voice pipeline) |
+| B-P2-02 | 2.1 | Live media stream + TTS full loop |
+| B-P2-03 | 1.2 | Deepgram/Sarvam STT credentials |
+| B-P2-04 | 1.3 | Anthropic credential |
+| B-P2-05 | 1.4 | ElevenLabs TTS credential |
+| B-P2-06 | 1.6 | JTI blacklist in-memory — needs Redis |
 | B-P2B-01 | 2 | Phase 2B (the MPC leg) never ran |
-| B-P3-01…08 | 2, 6 | Live voice tests gated on the above; env sync (B-P3-08) |
-| B-P4-01…08 | 4 | Payments/WhatsApp/PDF/cost/email |
-| B-P5-01…04 | 7 | Second-tenant proof + permanently human-gated actions |
-| B-FE1-02/03 | 5.1 | Vercel Root Directory (superseded by BLK-4, same fix) |
+| B-P3-01 | 2.3 | Supervisor live monitor/barge/takeover/release |
+| B-P3-02 | 1.3 | Claude-powered real-time suggestions |
+| B-P3-03 | 1.3 | Claude Sonnet post-call summary |
+| B-P3-04 | 1.6 | Multi-worker call_feed/JTI — needs Redis |
+| B-P3-05 | 2.4 | Telugu STT/TTS path |
+| B-P3-06 | 2.5 | Per-participant recording URL |
+| B-P3-07 | 10 | Local Colima/Supabase stack for local dev |
+| B-P3-08 | 10 | Root `.env.example` missing 14 fields |
+| B-P4-01 | 1.7, 4.1 | Razorpay credentials + one human-confirmed real link |
+| B-P4-02 | 1.8, 4.2 | WhatsApp credentials + one human-confirmed real send |
+| B-P4-03 | 4.5 | PDF rendering library decision |
+| B-P4-04 | 4.6 | Real cost data (falls out of Phase 2) |
+| B-P4-05 | 1.3 | Report quality bounded by stub post-call pipeline |
+| B-P4-06 | 3.2 | Cross-phase access-matrix sweep needs a live DB |
+| B-P4-07 | 4.3 | Meta template approval for scheduled reports |
+| B-P4-08 | 4.4 | Email transport for report schedules |
+| B-P5-01 | 7.1 | Tenant-B fixture (designed approach, not a workaround) |
+| B-P5-02 | 7.1 | Tenant-B migration `0018` not applied live |
+| B-P5-03 | 7.2 | 🏢 Plivo Reseller application |
+| B-P5-04 | 7.3 | 🏢 Real invoicing of a second agency |
+| B-FE1-02 | 5.1 | Vercel Root Directory — agency-dashboard |
+| B-FE1-03 | 5.1 | Vercel Root Directory — techscapeai-platform |
+| B-FE7-01 | 3.3 (note) | Agency-self-serve-vs-traveller-facing — answered in practice by B-FE7-02/03, ledger row stale |
 | B-FE7-04 | 9.1 | Password echoed in 422 — code-only fix |
 | B-FE7-07 | 9.2 | No verified-OTP requirement at registration — code-only fix |
 | B-FE7-08 | 3.3 | Multi-agency traveller lookup decision |
-| B-SPRINT2B-01/02 | 0.1, 10 | Supabase access; fastembed model download |
-| DEBT-01…19 | 2, 10 | Non-blocking hardening — see Phase 10 |
+| B-SPRINT2B-01 | 0.1 | Supabase access unavailable from this sandbox |
+| B-SPRINT2B-02 | 10 | fastembed model can't download in this sandbox |
+| DEBT-01 | 2.2 | Latency headroom decision (inline vs. async) |
+| DEBT-02 | 1.6 | In-memory JTI blacklist — needs Redis |
+| DEBT-04 | 2.1 (note) | Superseded by DEBT-20 (resolved), ledger row stale |
+| DEBT-05 | 2.6 | WS contract drift vs. api-conventions.md |
+| DEBT-06 | 2.7 | Fire-and-forget task leak in schedule() |
+| DEBT-07 | 1.3 | Sentiment score is a clamped-constant EMA |
+| DEBT-08 | 10 | Abrupt hangup discards buffered audio |
+| DEBT-09 | 10 | Unanchored keyword substring matching |
+| DEBT-10 | 10 | WhatsApp session-window state not shared across workers |
+| DEBT-11 | 10 | `fx_rate_at()` NULL not enforced on callers |
+| DEBT-12 | 10 | Recorded intentionally — do not "fix" the Plivo/Razorpay fail-open/closed asymmetry |
+| DEBT-13 | 10 | `TakeoverState` duplicated in two type files |
+| DEBT-15 | 2.6 | Five spec'd WS message types never emitted |
+| DEBT-17 | 10 | Divergent localStorage token key names across apps |
 
 ---
 
@@ -397,3 +453,21 @@ subject to the `gogaga-scoreboard` skill's per-commit update rule. When a phase 
    enforces this for scoring-relevant paths).
 3. Strike the line here or move it to a "Closed" section — this file should always show the
    **current** shortest path to 100% live, not a history of what used to block it.
+
+---
+
+## Closed this phase (Phase 9-shaped: zero-credential work, log kept per the skill's convention)
+
+- **2026-08-10 — Installed the `gogaga-golive-roadmap` skill.** Self-maintenance mechanism for
+  this file, mirroring `gogaga-scoreboard`'s discipline. Included a real orphan sweep on install
+  (`scripts/check_roadmap_orphans.py`), which found and fixed two classes of drift that predated
+  the skill: (a) `BLK-1`–`BLK-5` were referenced throughout this file and
+  `GOGAGA_ANALYSIS_REPORT.md` but had no row in `BLOCKERS.md` — added; (b) 12 active blockers
+  (`B-FE1-03`, `B-FE7-01`, `B-P2-02`, `B-P2-06`, `B-P3-03`, `B-P3-04`, `B-P3-07`, `B-P4-05`,
+  `B-P4-06`, `DEBT-02`, `DEBT-04`, `DEBT-08`) were hidden from this file by compact range/slash
+  notation (`B-P2-01…06`, `B-FE1-02/03`) in the old reference index — expanded every ID
+  individually and placed each in its real dependency phase. Also surfaced two ledger rows that
+  are stale (`B-FE7-01` and `DEBT-04` describe work later resolved under `B-FE7-02`/`B-FE7-03` and
+  `DEBT-20` respectively, but their own status cells were never flipped) — noted in-line at 3.3
+  and 2.1 rather than silently edited, since correcting `BLOCKERS.md` itself is that file's own
+  maintenance, not this skill's.

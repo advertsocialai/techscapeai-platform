@@ -77,3 +77,4 @@ its presence in history is itself auditable.
 - [ ] Stub↔live transitions? → seams table updated?
 - [ ] "Last updated" line current?
 - [ ] Top caveat still true?
+- [ ] Did any BLK-*/score change this session affect `GO_LIVE_ROADMAP.md`'s phase gates? → update it too (see `gogaga-golive-roadmap` skill).

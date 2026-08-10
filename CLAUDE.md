@@ -31,6 +31,16 @@ alongside `gogaga-backend`/`gogaga-migrations`/`gogaga-verifier`; the
 mechanical safety net is `scripts/check_scoreboard_updated.sh` (also a CI
 job). Deliberate no-ops say "no scoreboard impact" in the commit message.
 
+**Go-live roadmap rule:** `GO_LIVE_ROADMAP.md` at the repo root is the
+dependency-ordered Phase 0–10 sequence from every stub to live — it answers
+"what do I do next, in what order," which the scoreboard and `BLOCKERS.md`
+ledger don't. Any commit that closes a roadmap step or resolves a blocker ID
+referenced in it must update `GO_LIVE_ROADMAP.md` in the same commit. Load
+`.claude/skills/gogaga-golive-roadmap/` at session start alongside
+`gogaga-scoreboard`; the mechanical safety net is
+`scripts/check_roadmap_updated.sh` + `scripts/check_roadmap_orphans.py` (also
+CI jobs). Deliberate no-ops say "no roadmap impact" in the commit message.
+
 ---
 
 # TechScape AI — Design System Rules (Figma ↔ Code)

@@ -163,6 +163,36 @@ jobs:
           fi
 
   # ──────────────────────────────────────────────
+  # Go-live roadmap safety net
+  # A commit touching BLOCKERS.md or mentioning a blocker ID must update
+  # GO_LIVE_ROADMAP.md in the same commit or declare "no roadmap impact".
+  # Also verifies no orphaned references either direction. Rule + rationale:
+  # .claude/skills/gogaga-golive-roadmap/SKILL.md. Sibling of the Scoreboard
+  # Check job above — same branch scope, same billing-blocked rationale.
+  # ──────────────────────────────────────────────
+  roadmap:
+    name: Roadmap Check
+    runs-on: ubuntu-latest
+    # Klara-ai only: direct pushes to it, or PRs whose head branch is it.
+    if: github.ref == 'refs/heads/Klara-ai' || github.head_ref == 'Klara-ai'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check roadmap update rule
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            scripts/check_roadmap_updated.sh "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            scripts/check_roadmap_updated.sh HEAD
+          fi
+
+      - name: Check for orphaned blocker references
+        run: python3 scripts/check_roadmap_orphans.py
+
+  # ──────────────────────────────────────────────
   # Backend Docker Build
   # Dockerfile lives at repo root but is written to run `pip install -r
   # requirements.txt` + `uvicorn app.main:app` against the api/ layout
