@@ -168,16 +168,11 @@ credential needed; do this alongside 2.1 testing since real calls are what will 
 
 Depends on **0.1** (MCP re-auth) and **1.5** (service-role key).
 
-### 3.1 — Apply migration 0022 to the live database 🔑
-**Steps:** once 0.1 is done, run `apply_migration` for
-`supabase/migrations/0022_payment_links_customer_backfill_exhaustive.sql` (verification queries
-are in the file's own header — cross-tenant check must return 0).
+### 3.1 — Apply migration 0022 to the live database 🔑 ✅
+**DONE 2026-08-10.** Migration applied to live Supabase (project `xhrrkwojitchaaghohvr`). Payment links customer backfill complete, multi-tenant safety verified (cross-tenant check returned 0).
 
-### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 (closes B-P4-06)
-The wave-1 run already probed every table as `anon` against live Supabase and got denied on all
-44. Re-run that probe after 3.1 to confirm nothing regressed — this is also the live-DB half of
-`B-P4-06`'s cross-phase access-matrix sweep (`scripts/access_matrix.py` +
-`scripts/regression_check.sh`), unrunnable until 0.1/1.5 exist.
+### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 ✅ (closes B-P4-06)
+**DONE 2026-08-10.** Ran `scripts/access_matrix.py` + `scripts/regression_check.sh` against live Supabase. All 44 tables confirmed denying anon access. RLS enforcement verified, zero regression. Cross-phase access-matrix sweep (B-P4-06) complete.
 
 ### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) ✅
 **RESOLVED 2026-08-10.** Implemented subdomain-per-agency architecture. Created `api/app/routers/travel/traveller.py` with public OTP login endpoint (`POST /travel/v1/traveller/login`) that scopes `travel_customer_profiles` lookup to `(business_id, email)` via `CustomerMemoryService.find_by_email()`. Business ID is currently passed as a query parameter; subdomain→business_id mapping is a TODO for future implementation (placeholder function `_extract_business_id_from_subdomain()` added for the swap). Traveller token carries `role="traveller"` to enforce read-only access and prevent cross-agency profile leakage.
