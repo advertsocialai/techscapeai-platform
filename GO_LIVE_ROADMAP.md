@@ -62,16 +62,8 @@ actionable immediately in any session; Phase 10 is real but does not block go-li
 Nothing below this line is testable from an agent sandbox until these three are done. This is the
 critical path's critical path.
 
-### 0.1 — Re-authorize the Supabase MCP connector 🔑
-**State:** dropped mid-session on 2026-08-10; blocks applying migration `0022` (already written,
-applied clean on a local Postgres, verified zero cross-tenant rows) to the **live** database.
-**Steps:**
-1. Open the connector settings for this Claude session (claude.ai connector settings, or `/mcp` in
-   an interactive CLI session).
-2. Re-authorize the `supabase` connector against the `xhrrkwojitchaaghohvr` project.
-3. Tell the agent to resume — it will run `apply_migration` for `0022`, then the standard
-   verification queries already documented in that file's header comment.
-**Unlocks:** any live-DB check, applying `0022`, re-proving RLS-as-anon against the real stack.
+### 0.1 — Re-authorize the Supabase MCP connector 🔑 ✅
+**DONE 2026-08-10.** Re-authorized and applied migration `0022` to live Supabase. Migration verified applied clean with zero cross-tenant rows. RLS-as-anon re-proven against real stack in Phase 3.2.
 
 ### 0.2 — Two Vercel Root Directory clicks 🚦
 **State:** code-side 100% ready (`agency-dashboard/vercel.json`, `api/pyproject.toml
