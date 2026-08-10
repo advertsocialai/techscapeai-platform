@@ -15,5 +15,9 @@
 #
 # Full deploy decision + local verification evidence: scripts/DEPLOY_READINESS.md
 
+[project]
+name = "techscapeai-platform"
+version = "0.1.0"
+
 [tool.vercel]
 entrypoint = "app.main:app"
