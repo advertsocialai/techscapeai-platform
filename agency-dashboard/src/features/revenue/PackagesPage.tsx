@@ -35,6 +35,15 @@ export default function PackagesPage() {
   const [name, setName] = useState('')
   const [days, setDays] = useState('')
   const [price, setPrice] = useState('')
+
+  // Same rule as PaymentLinksPage: money and duration refuse junk before it
+  // becomes a request. Empty = untouched (button disabled, no error shown).
+  const daysValue = Number(days.trim())
+  const daysValid = days.trim() !== '' && Number.isInteger(daysValue) && daysValue > 0
+  // ge=0, not gt=0: the server model (packages.py base_price_inr Field(ge=0))
+  // allows a zero-priced package, so the client must too — mirror, don't invent.
+  const priceValue = Number(price.trim())
+  const priceValid = price.trim() !== '' && Number.isFinite(priceValue) && priceValue >= 0
   const [currency, setCurrency] = useState('INR')
   const [newCategory, setNewCategory] = useState<PackageCategory | ''>('')
 
@@ -117,8 +126,13 @@ export default function PackagesPage() {
             <div className="t2" style={{ marginBottom: 12 }}>Add a package</div>
             <div className="form-row">
               <input className="input grow" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
-              <input className="input" placeholder="Days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value)} />
-              <input className="input" placeholder="Price" inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} />
+              <input className="input" placeholder="Days" inputMode="numeric" aria-label="Duration in days" aria-invalid={days.trim() !== '' && !daysValid} value={days} onChange={(e) => setDays(e.target.value)} />
+              <input className="input" placeholder="Price" inputMode="decimal" aria-label="Package price" aria-invalid={price.trim() !== '' && !priceValid} value={price} onChange={(e) => setPrice(e.target.value)} />
+              {((days.trim() !== '' && !daysValid) || (price.trim() !== '' && !priceValid)) && (
+                <span role="alert" style={{ color: 'var(--danger, #f87171)', fontSize: 12, alignSelf: 'center' }}>
+                  {days.trim() !== '' && !daysValid ? 'Days must be a whole number above 0' : 'Price must be a number (0 or more)'}
+                </span>
+              )}
               <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
                 <option value="INR">INR</option>
                 <option value="USD">USD</option>
@@ -135,7 +149,7 @@ export default function PackagesPage() {
               <button
                 type="button"
                 className="btn"
-                disabled={!name.trim() || !days || !price || create.isPending}
+                disabled={!name.trim() || !daysValid || !priceValid || create.isPending}
                 onClick={() => create.mutate()}
               >
                 {create.isPending ? 'Adding…' : 'Add'}

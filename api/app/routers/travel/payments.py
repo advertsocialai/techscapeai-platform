@@ -45,6 +45,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status as http_status
 from pydantic import BaseModel, Field, field_validator
 
+from app.core import alerting
 from app.core.deps import require_role
 from app.database import get_supabase_admin
 from app.services.payments import (
@@ -71,7 +72,11 @@ _TABLE = "payment_links"
 
 # ── Models ────────────────────────────────────────────────────────────────
 class PaymentLinkCreate(BaseModel):
-    amount: Decimal = Field(..., description="Major units (rupees), NOT paise")
+    # gt=0 at the schema level duplicates what _positive_amount below already
+    # enforces — kept so the OpenAPI schema advertises the constraint instead
+    # of hiding it inside a validator. The validator remains the richer check
+    # (NUMERIC(12,2) ceiling + message).
+    amount: Decimal = Field(..., gt=0, description="Major units (rupees), NOT paise")
     currency: str = Field(default="INR", min_length=3, max_length=3)
     lead_id: Optional[UUID] = None
     package_id: Optional[UUID] = None
@@ -176,8 +181,20 @@ async def create_payment_link(body: PaymentLinkCreate, user: dict = Depends(_AGE
     db = get_supabase_admin()
     business_id = str(user["business_id"])
 
+    # Resolve customer attribution at creation time. Migration 0021 added
+    # payment_links.customer_id and backfilled history; without this, every
+    # NEW link raised against an attributed lead would still start NULL and
+    # wait for the next backfill — the gap 0022 closes must stay closed.
+    customer_id: str | None = None
     if body.lead_id:
-        _assert_owned(db, "travel_leads", body.lead_id, business_id, "Lead")
+        lead_rows = (
+            db.table("travel_leads").select("id, customer_id")
+            .eq("id", str(body.lead_id)).eq("business_id", business_id)
+            .limit(1).execute().data
+        )
+        if not lead_rows:
+            raise HTTPException(http_status.HTTP_404_NOT_FOUND, "Lead not found")
+        customer_id = lead_rows[0].get("customer_id")
     if body.package_id:
         _assert_owned(db, "travel_packages", body.package_id, business_id, "Package")
 
@@ -196,6 +213,7 @@ async def create_payment_link(body: PaymentLinkCreate, user: dict = Depends(_AGE
         db.table(_TABLE).insert({
             "business_id": business_id,
             "lead_id": str(body.lead_id) if body.lead_id else None,
+            "customer_id": customer_id,
             "package_id": str(body.package_id) if body.package_id else None,
             "amount": str(body.amount),
             "currency": body.currency,
@@ -350,6 +368,9 @@ async def razorpay_webhook(request: Request):
 
     if not gw.verify_webhook_signature(raw_body, request.headers):
         logger.warning("payment webhook rejected: invalid or missing signature (gateway=%s)", gw.name)
+        # Observability: count the rejection so a burst (probing, or a rotated
+        # webhook secret) fires alerting.py rule 3. Never raises.
+        alerting.record_payment_signature_failure(gateway=gw.name)
         raise HTTPException(http_status.HTTP_403_FORBIDDEN, "Invalid or missing webhook signature")
 
     try:

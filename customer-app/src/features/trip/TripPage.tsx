@@ -63,8 +63,11 @@ export default function TripPage() {
         </div>
         <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 4 }}>{trip.destination}</div>
         <div style={{ fontSize: 12, color: colors.textSecondary }}>
-          {new Date(trip.start_date).toLocaleDateString()} –{' '}
-          {new Date(trip.end_date).toLocaleDateString()} · {trip.pax} travellers
+          {/* Null dates rendered as 1/1/1970 the first time real data hit this
+              screen (a booking can legitimately have no dates yet) — show a
+              dash, never the epoch. */}
+          {trip.start_date ? new Date(trip.start_date).toLocaleDateString() : 'Dates TBC'} –{' '}
+          {trip.end_date ? new Date(trip.end_date).toLocaleDateString() : '—'} · {trip.pax} travellers
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>

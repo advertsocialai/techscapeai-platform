@@ -44,6 +44,12 @@ export default function PaymentLinksPage() {
   const [description, setDescription] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Mirrors the server (Pydantic gt=0) and the DB CHECK (amount > 0): a money
+  // field must refuse junk before it becomes a request. Empty is "untouched",
+  // not invalid — the button stays disabled but no error shows.
+  const amountValue = Number(amount.trim())
+  const amountValid = amount.trim() !== '' && Number.isFinite(amountValue) && amountValue > 0
+
   const linksQ = useQuery({
     queryKey: ['payment-links'],
     queryFn: () => paymentsApi.list({ limit: 50 }),
@@ -104,9 +110,16 @@ export default function PaymentLinksPage() {
                 className="input"
                 placeholder="Amount (major units, e.g. 45000)"
                 inputMode="decimal"
+                aria-label="Amount in major units"
+                aria-invalid={amount.trim() !== '' && !amountValid}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
+              {amount.trim() !== '' && !amountValid && (
+                <span role="alert" style={{ color: 'var(--danger, #f87171)', fontSize: 12, alignSelf: 'center' }}>
+                  Enter an amount greater than 0
+                </span>
+              )}
               <select
                 className="input"
                 value={currency}
@@ -125,7 +138,7 @@ export default function PaymentLinksPage() {
               <button
                 type="button"
                 className="btn"
-                disabled={!amount.trim() || create.isPending}
+                disabled={!amountValid || create.isPending}
                 onClick={() => create.mutate()}
               >
                 {create.isPending ? 'Creating…' : 'Create'}

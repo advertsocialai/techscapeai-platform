@@ -26,11 +26,11 @@ Last updated: **2026-08-10** at `98f3f3d` (wave-2 run, local-seam checkpoint).
 
 | # | Area | Dashboard | Customer app | Live-verified? | What's missing / blocker |
 |--:|---|---:|---:|:--:|---|
-| 1 | DB | **100%** | **95%** | ✅ schema live, RLS probed as `anon` | −5 customer: `payment_links.customer_id` backfill only covers links whose lead implied a customer |
+| 1 | DB | **100%** | **100%** | ✅ schema live, RLS probed as `anon`; ✅ (seam) all migrations incl. 0022 clean on vanilla PG16 | −5 CLOSED: 0022 makes the backfill exhaustive (phone is the lead's ONLY identity column — verified), declares the unlinkable remainder explicitly, and payments.py now sets customer_id at creation so the gap can't regrow. 0022 pending apply to live Supabase (MCP re-auth needed) |
 | 2 | Backend | **97%** | **100%** | ✅ (seam) rows served end-to-end | −3 dashboard: audio produced, not transmitted (BLK-1). Customer −15 CLOSED: traveller path proven against real Postgres (OTP login → `/me/trip` → real booking) |
-| 3 | UI | **85%** | **95%** | ⚠️ customer app deploys Ready; dashboard deploy red | Dashboard: 2 real TODOs, 1 feature not on the API. Deploys: BLK-4 |
+| 3 | UI | **95%** | **100%** | ✅ (seam) both UIs rendered real rows; customer deploys Ready, dashboard deploy red (BLK-4) | Wave-1's "1 feature not on the API" was a wording bug — the 13th is `layout`, correctly a shell. Marker 1 (hardcoded ws `seq:1`) FIXED — both emit sites now real-monotonic. Marker 2 (live-call audio UI) stays: BLK-1. Customer: null-dates-as-1/1/1970 bug found by real data, fixed |
 | 4 | Auth | **100%** | **100%** | ✅ (seam) real logins | The wave-1 deduction ("no login against a real DB") closed: owner signup+login and traveller OTP login both exercised against real Postgres rows; cross-token separation 401 live; guards verified in Chromium |
-| 5 | Validation | **90%** | **90%** | — | Password rules mirror server exactly; 422 crash fixed at every auth call site |
+| 5 | Validation | **100%** | **100%** | — | Scoring rule: every auth AND money/duration input validated client-side with rules that MIRROR the server, and server models mirror DB CHECKs. Server already rejected bad amounts (validator, 422 — a wave-2 claim to the contrary was corrected before push); closed this run: PaymentLinks + Packages forms now validate client-side (amount gt 0; price ge 0 mirroring the server; days integer ≥1), gt=0 surfaced into the OpenAPI schema |
 | 6 | Backend testing | **80%** | **80%** | n/a (local) | 80 tests pass. No coverage metric yet |
 | 7 | Frontend testing | **60%** | **60%** | n/a (local) | 13+13 tests (password mirror, 422 envelope). Missing: component/interaction tests |
 | 8 | Rate limiting / abuse | **90%** | **90%** | ❌ | All 6 unauthenticated endpoints covered, 4 tests. −10: in-memory — Redis needed for multi-worker |

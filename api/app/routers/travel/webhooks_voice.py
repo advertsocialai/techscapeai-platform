@@ -32,6 +32,7 @@ from app.core.config import settings
 from app.database import get_supabase_admin
 from app.services.travel import call_feed
 from app.services.travel.voice import (
+    CONSENT_ANNOUNCEMENT_LANGUAGE, CONSENT_WORDING_VERSION,
     select_stt_engine, stream_xml, transcribe_utterance, verify_plivo_signature,
 )
 from app.services.travel import (
@@ -171,7 +172,7 @@ async def answer_call(
             "status": "new",
         }).execute().data[0]["id"]
 
-        db.table("travel_calls").insert({
+        call_rows = db.table("travel_calls").insert({
             "business_id":  business_id,
             "lead_id":      lead_id,
             "provider_sid": call_uuid,
@@ -179,7 +180,37 @@ async def answer_call(
             "mode":         "ai",
             "started_at":   datetime.now(timezone.utc).isoformat(),
             "takeover_state": "ai",
-        }).execute()
+        }).execute().data
+
+        # C-3 (COMPLIANCE_CHECKLIST.md): record that the consent disclosure
+        # was served with this call's answer XML. stream_xml() below always
+        # includes CONSENT_ANNOUNCEMENT (announce_consent defaults True), so
+        # the event is written at the same moment the XML that plays it is
+        # returned to Plivo. event_type is a free VARCHAR(50) on
+        # travel_call_events (migration 0005 — no CHECK constraint), so no
+        # schema change is needed. Wording/language are versioned in
+        # payload — see voice.py CONSENT_WORDING_VERSION
+        # (PENDING LEGAL REVIEW, BLK-8: wording placeholder, mechanism final).
+        # Failure to write the event must never fail the answer webhook —
+        # the caller still gets answered; the gap is logged instead.
+        # NOTE: when no business_id resolves, no travel_calls row exists and
+        # the FK makes an event row impossible — the announcement still
+        # PLAYS (stream_xml is unconditional); only the persisted marker is
+        # tied to having a call row.
+        try:
+            db.table("travel_call_events").insert({
+                "call_id":    call_rows[0]["id"],
+                "event_type": "consent_disclosure_played",
+                "payload": {
+                    "language":        CONSENT_ANNOUNCEMENT_LANGUAGE,
+                    "wording_version": CONSENT_WORDING_VERSION,
+                },
+            }).execute()
+        except Exception:
+            logger.warning(
+                "consent event write failed for call=%s — answering anyway",
+                call_uuid, exc_info=True,
+            )
 
         # T9: request per-participant recording (customer leg)
         # BLOCKED: Plivo API call needs PLIVO_AUTH_ID/TOKEN (B-P3-06)
@@ -292,9 +323,14 @@ async def media_stream(websocket: WebSocket, provider: str):
                         logger.info("transcript written: call=%s engine=%s stub=%s len=%d",
                                     call_row.get("provider_sid"), engine,
                                     result.get("stub"), len(result["text"]))
+                        # seq must be really monotonic, not the hardcoded 1 it
+                        # used to be — the AI-reply emit already counts rows
+                        # via _next_seq; the customer emit now does the same.
+                        from app.services.travel.voice_turn_service import _next_seq
                         await call_feed.publish(call_row["id"], {
                             "type": "transcript", "call_id": call_row["id"],
-                            "seq": 1, "speaker": transcript_row["speaker"],
+                            "seq": _next_seq(db, call_row["id"]),
+                            "speaker": transcript_row["speaker"],
                             "text_original": transcript_row["text_original"],
                             "text_translated": transcript_row.get("text_translated"),
                             "language": call_row.get("language", "en"),

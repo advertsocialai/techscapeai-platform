@@ -97,11 +97,13 @@ export interface TranscriptMessage {
    * OPTIONAL ON PURPOSE.
    *
    * api-conventions.md says `seq` is "monotonically increasing per call (lets
-   * the frontend detect gaps after reconnect)". The code HARDCODES `"seq": 1`
-   * at its one and only emit site (webhooks_voice.py:291) and no other message
-   * type carries a `seq` at all.
+   * the frontend detect gaps after reconnect)". That is now TRUE (wave-2 fix):
+   * both emit sites (customer transcript in webhooks_voice.py and AI reply in
+   * voice_turn_service.py) derive seq from the call's real transcript count.
+   * Gap-detection against it is now legitimate, though still optional here.
    *
-   * Therefore: do NOT write gap-detection against this field. Every frame
+   * Kept optional in the type because older recorded frames may carry the
+   * historical hardcoded value. Every frame
    * currently reports seq 1, so any "we missed N messages" logic built on it
    * would fire constantly and lie to the user. Typed optional so consumers are
    * forced to handle its absence and are not tempted to trust it.
