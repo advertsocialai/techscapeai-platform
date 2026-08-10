@@ -52,6 +52,7 @@ IMPORTANT: read the JWT secret/alg/claim-shape from `api/app/core/security.py` f
 - **Token invalidation chains**: after logout or user deactivation, prove the OLD token now fails (401/403) — this is the most commonly skipped check.
 - **Secrets discipline**: mask all tokens/keys in output to last 4 chars.
 - **3-attempt rule**: verification failing 3 times → STOP, report blocker, don't improvise.
+- **Scoreboard discipline**: `AREAS.md` at the repo root is the combined completeness scoreboard for both apps. Any task that moves an area — up or down, including newly discovered gaps — updates `AREAS.md` **in the same commit** as the change. A verification pass that changes a number but leaves the scoreboard stale is incomplete.
 
 ## Per-phase verification focus
 
