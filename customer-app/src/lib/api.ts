@@ -1,8 +1,8 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
 import type { LoginPayload, LoginResponse, RegisterPayload } from '../types/auth'
 
-const ACCESS_KEY = 'access_token'
-const REFRESH_KEY = 'refresh_token'
+const ACCESS_KEY = 'gogaga_access_token'
+const REFRESH_KEY = 'gogaga_refresh_token'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/techscape/v1',

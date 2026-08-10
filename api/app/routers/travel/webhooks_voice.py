@@ -49,6 +49,85 @@ router = APIRouter()
 _SUPPORTED_PROVIDERS = {"plivo"}
 
 
+async def _process_call_stop(
+    db, call_row: dict, audio_chunks: list[bytes], call_start_ms: int | None,
+    media_frame_count: int, ai_config: dict,
+):
+    """Process accumulated audio and pipeline data when a call stops.
+    Called on both explicit "stop" event and on WebSocketDisconnect.
+    Extracts stop handler logic so it runs identically in both paths.
+    """
+    if not call_row:
+        return
+
+    started_at = _parse_started_at(call_row)
+    now = datetime.now(timezone.utc)
+    duration = int((now - started_at).total_seconds()) if started_at else None
+    db.table("travel_calls").update({
+        "status": "completed",
+        "ended_at": now.isoformat(),
+        "duration_sec": duration,
+    }).eq("id", call_row["id"]).execute()
+    logger.info("stream stop: call=%s frames=%d duration_sec=%s",
+                call_row.get("provider_sid"), media_frame_count, duration)
+    await call_feed.publish(call_row["id"], {
+        "type": "call_status", "call_id": call_row["id"],
+        "status": "completed", "mode": call_row.get("mode", "ai"),
+    })
+
+    if audio_chunks:
+        engine = select_stt_engine(call_row.get("language"))
+        result = await transcribe_utterance(
+            engine=engine, audio_bytes=b"".join(audio_chunks),
+            language=call_row.get("language"),
+        )
+        db.table("travel_calls").update({"stt_engine": engine}).eq(
+            "id", call_row["id"]
+        ).execute()
+        transcript_row = db.table("travel_transcripts").insert({
+            "call_id": call_row["id"],
+            "speaker": "customer",
+            "text_original": result["text"],
+            "timestamp_ms": call_start_ms or 0,
+        }).execute().data[0]
+        logger.info("transcript written: call=%s engine=%s stub=%s len=%d",
+                    call_row.get("provider_sid"), engine,
+                    result.get("stub"), len(result["text"]))
+        from app.services.travel.voice_turn_service import _next_seq
+        await call_feed.publish(call_row["id"], {
+            "type": "transcript", "call_id": call_row["id"],
+            "seq": _next_seq(db, call_row["id"]),
+            "speaker": transcript_row["speaker"],
+            "text_original": transcript_row["text_original"],
+            "text_translated": transcript_row.get("text_translated"),
+            "language": call_row.get("language", "en"),
+            "timestamp_ms": transcript_row["timestamp_ms"], "is_final": True,
+        })
+
+        sentiment_service.schedule(
+            call_row["id"], transcript_row["id"],
+            result["text"], "customer"
+        )
+
+        schedule_transcript_embedding(transcript_row["id"], result["text"])
+
+        suggestion_service.schedule(
+            call_row["id"], result["text"], "customer", ai_config
+        )
+
+        voice_turn_service.schedule(
+            call_id=call_row["id"],
+            business_id=call_row["business_id"],
+            lead_id=call_row.get("lead_id"),
+            customer_text=result["text"],
+            language=call_row.get("language", "en"),
+            stt_engine=engine,
+            ai_config=ai_config,
+        )
+
+    post_call_service.schedule(call_row["id"], call_row["business_id"])
+
+
 def _webhook_url(request: Request) -> str:
     base = settings.PUBLIC_BASE_URL.rstrip("/") if settings.PUBLIC_BASE_URL else str(request.base_url).rstrip("/")
     path = request.url.path
@@ -289,98 +368,12 @@ async def media_stream(websocket: WebSocket, provider: str):
                         call_start_ms = int(ts)
 
             elif event == "stop":
-                if call_row:
-                    started_at = _parse_started_at(call_row)
-                    now = datetime.now(timezone.utc)
-                    duration = int((now - started_at).total_seconds()) if started_at else None
-                    db.table("travel_calls").update({
-                        "status":       "completed",
-                        "ended_at":     now.isoformat(),
-                        "duration_sec": duration,
-                    }).eq("id", call_row["id"]).execute()
-                    logger.info("stream stop: call=%s frames=%d duration_sec=%s",
-                                call_row.get("provider_sid"), media_frame_count, duration)
-                    await call_feed.publish(call_row["id"], {
-                        "type": "call_status", "call_id": call_row["id"],
-                        "status": "completed", "mode": call_row.get("mode", "ai"),
-                    })
-
-                    if audio_chunks:
-                        engine = select_stt_engine(call_row.get("language"))
-                        result = await transcribe_utterance(
-                            engine=engine, audio_bytes=b"".join(audio_chunks),
-                            language=call_row.get("language"),
-                        )
-                        db.table("travel_calls").update({"stt_engine": engine}).eq(
-                            "id", call_row["id"]
-                        ).execute()
-                        transcript_row = db.table("travel_transcripts").insert({
-                            "call_id":       call_row["id"],
-                            "speaker":       "customer",
-                            "text_original": result["text"],
-                            "timestamp_ms":  call_start_ms or 0,
-                        }).execute().data[0]
-                        logger.info("transcript written: call=%s engine=%s stub=%s len=%d",
-                                    call_row.get("provider_sid"), engine,
-                                    result.get("stub"), len(result["text"]))
-                        # seq must be really monotonic, not the hardcoded 1 it
-                        # used to be — the AI-reply emit already counts rows
-                        # via _next_seq; the customer emit now does the same.
-                        from app.services.travel.voice_turn_service import _next_seq
-                        await call_feed.publish(call_row["id"], {
-                            "type": "transcript", "call_id": call_row["id"],
-                            "seq": _next_seq(db, call_row["id"]),
-                            "speaker": transcript_row["speaker"],
-                            "text_original": transcript_row["text_original"],
-                            "text_translated": transcript_row.get("text_translated"),
-                            "language": call_row.get("language", "en"),
-                            "timestamp_ms": transcript_row["timestamp_ms"], "is_final": True,
-                        })
-
-                        # T4: sentiment scoring (fire-and-forget, OFFLINE mode)
-                        sentiment_service.schedule(
-                            call_row["id"], transcript_row["id"],
-                            result["text"], "customer"
-                        )
-
-                        # T6: embed transcript text (fire-and-forget, off the event loop)
-                        schedule_transcript_embedding(transcript_row["id"], result["text"])
-
-                        # T3: suggestion generation (fire-and-forget, OFFLINE mode)
-                        suggestion_service.schedule(
-                            call_row["id"], result["text"], "customer", ai_config
-                        )
-
-                        # THE VOICE TURN — the AI actually replies.
-                        # Until this line existed, ai_engine.run_turn(),
-                        # voice.synthesize_speech() and voice.log_voice_turn()
-                        # had ZERO call sites: the customer spoke, we transcribed,
-                        # scored, embedded and whispered to the agent — and the AI
-                        # never said a word back. Nothing errored, which is why it
-                        # went unnoticed; the feature was simply absent.
-                        # Runs credential-free (stub model + silent TTS) and
-                        # fire-and-forget so a 30s model call cannot stall the
-                        # media socket and make Plivo drop the stream.
-                        voice_turn_service.schedule(
-                            call_id=call_row["id"],
-                            business_id=call_row["business_id"],
-                            lead_id=call_row.get("lead_id"),
-                            customer_text=result["text"],
-                            language=call_row.get("language", "en"),
-                            stt_engine=engine,
-                            ai_config=ai_config,
-                        )
-
-                    # T5: post-call intelligence pipeline (fire-and-forget)
-                    post_call_service.schedule(call_row["id"], call_row["business_id"])
+                await _process_call_stop(db, call_row, audio_chunks, call_start_ms,
+                                         media_frame_count, ai_config)
                 break
 
     except WebSocketDisconnect:
         if call_row and call_row.get("status") == "active":
-            started_at = _parse_started_at(call_row)
-            now = datetime.now(timezone.utc)
-            duration = int((now - started_at).total_seconds()) if started_at else None
-            db.table("travel_calls").update({
-                "status": "failed", "ended_at": now.isoformat(), "duration_sec": duration,
-            }).eq("id", call_row["id"]).execute()
-            logger.warning("stream disconnected without stop frame: call=%s", call_row.get("provider_sid"))
+            logger.warning("stream disconnected: processing remaining audio: call=%s", call_row.get("provider_sid"))
+            await _process_call_stop(db, call_row, audio_chunks, call_start_ms,
+                                     media_frame_count, ai_config)

@@ -115,33 +115,32 @@ def normalize_msisdn(to: str) -> str:
 
 # ── Session-window state ────────────────────────────────────────────────────
 # The window opens on the CUSTOMER's inbound message. The authoritative source
-# is therefore the inbound-webhook handler, which is a separate task and does
-# not exist yet — so this is an in-process registry that the webhook will call
-# into, and which must move to Postgres/Redis before multi-worker deploy
-# (an in-process dict is not shared across uvicorn workers).
+# is the whatsapp_sessions table (migration 0023), so the check is consistent
+# across multiple uvicorn workers.
 #
 # FAIL-CLOSED IS DELIBERATE: an unknown recipient has no recorded inbound, so
 # the window reads CLOSED and free-form is refused. Being wrong in that
 # direction costs one unnecessary template; being wrong the other way costs a
 # policy violation against the business's WhatsApp number.
 #
-# TENANT-KEYED (Phase 5 P1 isolation audit): the key is (business_id, msisdn),
+# TENANT-KEYED (Phase 5 P1 isolation audit): the lookup is (business_id, msisdn),
 # never the msisdn alone. The 24-hour window is a property of ONE business's
 # conversation with a customer — if agency A's customer messages A, that must
 # not authorise agency B to send that same number free-form text on B's own
 # WABA. Keying by number alone would make one tenant's inbound traffic unlock
-# another tenant's outbound policy gate. business_id is therefore part of the
+# another's outbound policy gate. business_id is therefore part of the
 # key, and an unknown/omitted business_id simply reads as a distinct namespace
 # that has never seen an inbound — i.e. closed, per the fail-closed rule above.
-_INBOUND_SEEN: dict[tuple[str, str], datetime] = {}
-
-
-def _window_key(business_id: Optional[str], to: str) -> tuple[str, str]:
-    return (str(business_id or ""), normalize_msisdn(to))
 
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _get_db() -> Any:
+    """Lazy-load service-role Supabase client for session state lookups."""
+    from app.database import get_supabase_admin
+    return get_supabase_admin()
 
 
 def record_inbound(
@@ -160,12 +159,37 @@ def record_inbound(
     ts = at or _utcnow()
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
-    _INBOUND_SEEN[_window_key(business_id, to)] = ts
+
+    to_normalized = normalize_msisdn(to)
+    bus_id = str(business_id or "")
+    db = _get_db()
+
+    db.table("whatsapp_sessions").upsert({
+        "business_id": bus_id,
+        "to_number": to_normalized,
+        "last_inbound_at": ts.isoformat(),
+    }).eq("business_id", bus_id).eq("to_number", to_normalized).execute()
+
     return ts
 
 
 def last_inbound_at(to: str, *, business_id: Optional[str] = None) -> Optional[datetime]:
-    return _INBOUND_SEEN.get(_window_key(business_id, to))
+    """Query the last inbound message timestamp from persistent storage."""
+    to_normalized = normalize_msisdn(to)
+    bus_id = str(business_id or "")
+    db = _get_db()
+
+    try:
+        rows = db.table("whatsapp_sessions").select("last_inbound_at").eq(
+            "business_id", bus_id
+        ).eq("to_number", to_normalized).limit(1).execute().data
+        if rows:
+            ts_str = rows[0]["last_inbound_at"]
+            return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+    except Exception:
+        logger.exception("Failed to query last_inbound_at for business=%s to=%s", bus_id, to)
+
+    return None
 
 
 def session_window_open(
@@ -179,8 +203,12 @@ def session_window_open(
 
 
 def clear_inbound_registry() -> None:
-    """Test helper — resets window state."""
-    _INBOUND_SEEN.clear()
+    """Test helper — resets window state by deleting all rows."""
+    db = _get_db()
+    try:
+        db.table("whatsapp_sessions").delete().neq("id", "").execute()
+    except Exception:
+        logger.exception("Failed to clear inbound registry")
 
 
 async def _maybe_await(value: Any) -> Any:
