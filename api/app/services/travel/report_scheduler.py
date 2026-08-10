@@ -29,6 +29,9 @@ from datetime import date, datetime, time, timedelta, timezone as dt_timezone
 from typing import Any, Optional
 from uuid import UUID
 
+import httpx
+
+from app.core.config import settings
 from app.database import get_supabase_admin
 
 from .report_service import (
@@ -439,9 +442,28 @@ async def deliver_report(
                 "sender": info, "results": results}
 
     if channel == "email":
-        # Email delivery is not implemented here — no mail transport is
-        # configured in this repo and adding one is out of scope for T5.
-        return {**base, "status": "unavailable",
-                "detail": "email delivery not implemented (no mail transport configured)"}
+        if not settings.RESEND_API_KEY:
+            return {**base, "status": "unavailable",
+                    "detail": "RESEND_API_KEY not configured"}
+        if not recipients:
+            return {**base, "status": "skipped", "detail": "no recipients configured"}
+
+        try:
+            resp = httpx.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                json={
+                    "from": f"Klara Reports <{settings.FROM_EMAIL}>",
+                    "to": recipients,
+                    "subject": f"Klara Analytics Report — {report.get('period_label', 'Report')}",
+                    "html": f"<pre>{body}</pre>",
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return {**base, "status": "sent", "detail": f"delivered to {len(recipients)} recipient(s)"}
+        except Exception as exc:
+            logger.exception("report email send failed")
+            return {**base, "status": "failed", "detail": str(exc)[:300]}
 
     return {**base, "status": "unavailable", "detail": f"unknown channel {channel!r}"}
