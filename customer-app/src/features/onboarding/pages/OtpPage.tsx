@@ -29,15 +29,20 @@ export default function OtpPage() {
   // reload produced a code that could never be verified.
   const otpEmail = email || localStorage.getItem('klara_otp_email') || ''
 
+  // No-email is DERIVED, not set in the effect — calling setState
+  // synchronously inside an effect is a lint error (cascading renders), and
+  // this message is a pure function of otpEmail anyway.
+  const noEmail = !otpEmail
+  const shownError = error || (noEmail ? 'We do not have your email address. Go back and re-enter it.' : '')
+
   // Auto-send OTP on mount
   useEffect(() => {
     if (otpEmail) {
       // Was `.catch(() => {})`. Swallowing this left the user staring at six
       // empty boxes waiting for a code that was never sent, with nothing on
-      // screen to say so.
+      // screen to say so. setError inside the async catch is fine — the lint
+      // rule only forbids the synchronous case.
       authApi.sendOtp(otpEmail).catch((err) => setError(errorMessage(err)))
-    } else {
-      setError('We do not have your email address. Go back and re-enter it.')
     }
     inputRefs.current[0]?.focus()
   }, [otpEmail])
@@ -185,9 +190,9 @@ export default function OtpPage() {
           </div>
 
           {/* Error */}
-          {error && (
+          {shownError && (
             <div style={{ background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#F87171', textAlign: 'center' }}>
-              {error}
+              {shownError}
             </div>
           )}
 
