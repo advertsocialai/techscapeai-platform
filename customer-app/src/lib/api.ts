@@ -107,10 +107,18 @@ export const authApi = {
 
   me: () => api.get('/auth/me'),
 
-  forgotPassword: (email: string) => api.post('/auth/password/forgot', { email }),
+  forgotPassword: (email: string) =>
+    api.post('/auth/password/forgot', { email }),
 
   refresh: (refreshToken: string) =>
     api.post<LoginResponse>('/auth/refresh', { refresh_token: refreshToken }),
+
+  googleOAuthUrl: (redirect_uri: string) =>
+    api.get<{ url: string; state: string }>('/auth/oauth/google/url', { params: { redirect_uri } }),
+
+  googleOAuthCallback: (code: string, redirect_uri: string) =>
+    api.get<LoginResponse>('/auth/oauth/google/callback', { params: { code, redirect_uri } }),
 }
 
 export default api
+

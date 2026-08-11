@@ -12,6 +12,9 @@ import AddressPage from './features/onboarding/pages/AddressPage'
 import OtpPage from './features/onboarding/pages/OtpPage'
 import TermsPage from './features/onboarding/pages/TermsPage'
 import SuccessPage from './features/onboarding/pages/SuccessPage'
+import GoogleCallbackPage from './features/onboarding/pages/GoogleCallbackPage'
+import ForgotPasswordPage from './features/onboarding/pages/ForgotPasswordPage'
+import ResetPasswordPage from './features/onboarding/pages/ResetPasswordPage'
 
 // Traveller app — currently backed by stubs, see lib/travellerApi.ts
 import TripShell from './features/trip/TripShell'
@@ -60,6 +63,7 @@ export default function App() {
             />
             <Route path="/onboarding/success" element={<SuccessPage />} />
 
+
             {/* Traveller surface. GUARDED as of the switch to real data: a
                 traveller identity now exists (POST /travel/v1/me/auth/verify-otp
                 issues a traveller-only token), and these screens render a real
@@ -74,6 +78,15 @@ export default function App() {
               <Route path="payments" element={<PaymentsPage />} />
               <Route path="messages" element={<MessagesPage />} />
             </Route>
+=======
+          {/* Google OAuth redirect target */}
+          <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+
+          {/* Password reset flow */}
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+        
 
             {/* The old placeholder route now lands somewhere real. */}
             <Route path="/dashboard" element={<Navigate to="/trip" replace />} />

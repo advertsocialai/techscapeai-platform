@@ -270,6 +270,7 @@ def password_forgot(payload: PasswordForgotIn, request: Request):
     rate_limit(request, bucket="pw-forgot", limit=6, window_sec=300, email=str(payload.email))
     svc = BusinessService()
     user = svc.find_user_by_email(str(payload.email))
+<<<<<<< Updated upstream
     token = _issue_reset_token(user["id"]) if user else None
 
     if token and settings.RESEND_API_KEY:
@@ -298,6 +299,28 @@ def password_forgot(payload: PasswordForgotIn, request: Request):
     # Never reveal whether the email exists — same response either way.
     if settings.DEBUG and token:
         return {"ok": True, "reset_token": token}
+=======
+    if user:
+        token = _issue_reset_token(user["id"])
+        reset_link = f"{settings.OAUTH_REDIRECT_BASE}/reset-password?token={token}"
+        if settings.RESEND_API_KEY:
+            try:
+                httpx.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                    json={
+                        "from": f"Klara <{settings.FROM_EMAIL}>",
+                        "to": [str(payload.email)],
+                        "subject": "Reset your Klara password",
+                        "html": f"<p>Click the link below to reset your password:</p><p><a href='{reset_link}'>{reset_link}</a></p><p>This link expires in 30 minutes. If you didn't request this, you can ignore this email.</p>",
+                    },
+                    timeout=10,
+                )
+            except Exception:
+                traceback.print_exc()
+        if settings.DEBUG:
+            return {"ok": True, "reset_token": token}
+>>>>>>> Stashed changes
     return {"ok": True}
 
 

@@ -36,7 +36,11 @@ export default function OtpPage() {
   const shownError = error || (noEmail ? 'We do not have your email address. Go back and re-enter it.' : '')
 
   // Auto-send OTP on mount
-  useEffect(() => {
+   const hasSentOtp = useRef(false)
+
+    useEffect(() => {
+    if (hasSentOtp.current) return
+    hasSentOtp.current = true
     if (otpEmail) {
       // Was `.catch(() => {})`. Swallowing this left the user staring at six
       // empty boxes waiting for a code that was never sent, with nothing on
@@ -45,7 +49,7 @@ export default function OtpPage() {
       authApi.sendOtp(otpEmail).catch((err) => setError(errorMessage(err)))
     }
     inputRefs.current[0]?.focus()
-  }, [otpEmail])
+  }, [])
 
   // Countdown timer
   useEffect(() => {
@@ -197,14 +201,14 @@ export default function OtpPage() {
           )}
 
           {/* OTP boxes */}
-          <div style={{ display: 'flex', gap: 9, justifyContent: 'center', marginBottom: 16 }} onPaste={handlePaste}>
+          <div style={{ display: 'flex', gap: 'clamp(4px, 2vw, 9px)', justifyContent: 'center', marginBottom: 16 }} onPaste={handlePaste}>
             {digits.map((digit, idx) => (
               <div key={idx} style={{
-                width: 48, height: 58, borderRadius: 13,
+                flex: '1 1 0', maxWidth: 48, aspectRatio: '48 / 58', borderRadius: 13,
                 background: digit ? 'rgba(59,143,232,0.10)' : 'rgba(255,255,255,0.07)',
                 border: `${digit ? '1.5px' : '1px'} solid ${digit ? '#3B8FE8' : 'rgba(255,255,255,0.11)'}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 22, fontWeight: 700, color: '#fff',
+                fontSize: 'clamp(17px, 5vw, 22px)', fontWeight: 700, color: '#fff',
                 position: 'relative', transition: 'all 0.15s',
                 boxShadow: digit ? '0 0 0 3px rgba(59,143,232,0.12)' : 'none',
               }}>

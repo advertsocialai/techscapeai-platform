@@ -4,6 +4,7 @@ import { useOnboarding } from '../context/OnboardingContext'
 import { isPasswordValid, passwordErrors } from '../../../lib/passwordValidation'
 import PasswordRequirements from '../PasswordRequirements'
 
+
 function BackArrow() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">

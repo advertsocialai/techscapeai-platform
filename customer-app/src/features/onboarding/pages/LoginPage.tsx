@@ -81,8 +81,6 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await authApi.forgotPassword(email)
-      // Deliberately does not confirm whether the address exists — same
-      // enumeration guard the backend applies.
       setError('')
       setNotice('If that email has an account, a reset link is on its way.')
     } catch (err) {
@@ -95,21 +93,25 @@ export default function LoginPage() {
   // GET /auth/oauth/google/url returns the provider URL to hand the browser.
   // A full-page redirect, not an XHR: an OAuth consent screen cannot complete
   // inside a fetch, and the callback has to land on a real navigation.
+  // redirect_uri is passed explicitly (this page's own origin) so this works
+  // unchanged across localhost/staging/prod. state is stashed for a CSRF
+  // check on the callback page.
   async function handleGoogle() {
     setError('')
     setLoading(true)
     try {
-      const res = await api.get<{ url?: string; authorization_url?: string }>(
-        '/auth/oauth/google/url',
-      )
-      const url = res.data?.url || res.data?.authorization_url
+      const redirectUri = `${window.location.origin}/auth/google/callback`
+      const res = await authApi.googleOAuthUrl(redirectUri)
+      const url = res.data?.url
       if (!url) throw new Error('Google sign-in is not configured on the server yet.')
+      sessionStorage.setItem('google_oauth_state', res.data.state)
       window.location.href = url
     } catch (err) {
       setError(errorMessage(err))
       setLoading(false)
     }
   }
+    
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') handleLogin()
@@ -230,6 +232,7 @@ export default function LoginPage() {
             >
               Forgot password?
             </span>
+
           </div>
 
           {/* Sign in button */}
@@ -266,6 +269,8 @@ export default function LoginPage() {
             onClick={handleGoogle}
             disabled={loading}
             style={{
+
+
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
             width: '100%', height: 50, borderRadius: 14,
             background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
