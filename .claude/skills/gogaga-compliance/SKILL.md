@@ -1,6 +1,6 @@
 ---
 name: gogaga-compliance
-description: India-specific regulatory patterns (TRAI call-recording consent, DPDP Act data-subject rights) for the GoGaga voice/data platform. ALWAYS use this skill when touching call-recording/consent flow, outbound calling-hours logic, data erasure, PII handling, terms/privacy-policy wiring, or any DPDP/TRAI-adjacent code. Trigger on: consent, DPDP, TRAI, erasure, right to be forgotten, retention, breach, PII, personal data, calling hours, CONSENT_WORDING_VERSION. This is an engineering-review skill, not legal advice — final wording/policy items always route to Gowtham as a 🚦 decision in BLOCKERS.md, never guessed in code or copy.
+description: "India-specific regulatory patterns (TRAI call-recording consent, DPDP Act data-subject rights) for the GoGaga voice/data platform. ALWAYS use this skill when touching call-recording/consent flow, outbound calling-hours logic, data erasure, PII handling, terms/privacy-policy wiring, or any DPDP/TRAI-adjacent code. Trigger on: consent, DPDP, TRAI, erasure, right to be forgotten, retention, breach, PII, personal data, calling hours, CONSENT_WORDING_VERSION. This is an engineering-review skill, not legal advice — final wording/policy items always route to Gowtham as a 🚦 decision in BLOCKERS.md, never guessed in code or copy."
 ---
 
 # GoGaga Compliance (India) — engineering patterns, not legal opinions
