@@ -110,6 +110,9 @@ export const authApi = {
   forgotPassword: (email: string) =>
     api.post('/auth/password/forgot', { email }),
 
+  resetPassword: (payload: { token: string; new_password: string }) =>
+    api.post('/auth/password/reset', payload),
+
   refresh: (refreshToken: string) =>
     api.post<LoginResponse>('/auth/refresh', { refresh_token: refreshToken }),
 

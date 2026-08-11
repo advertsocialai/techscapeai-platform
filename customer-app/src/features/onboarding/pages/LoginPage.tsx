@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api, { authApi } from '../../../lib/api'
+import { authApi } from '../../../lib/api'
 import { errorMessage } from '../../../lib/errors'
 
 // ── Klara Logo ──────────────────────────────────────

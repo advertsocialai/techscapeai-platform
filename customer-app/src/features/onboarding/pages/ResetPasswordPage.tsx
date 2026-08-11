@@ -55,8 +55,7 @@ export default function ResetPasswordPage() {
     setError('')
     setLoading(true)
     try {
-      // NOTE: add resetPassword to lib/api.ts authApi, hitting POST /auth/password/reset
-      await authApi.resetPassword({ token, password })
+      await authApi.resetPassword({ token, new_password: password })
       setDone(true)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'This reset link is invalid or expired. Request a new one.')
