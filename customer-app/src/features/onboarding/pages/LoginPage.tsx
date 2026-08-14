@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api, { authApi } from '../../../lib/api'
+import api, { authApi, setSession } from '../../../lib/api'
 import { errorMessage } from '../../../lib/errors'
 
 // ── Klara Logo ──────────────────────────────────────
@@ -56,8 +56,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await authApi.login({ email, password })
-      localStorage.setItem('access_token', res.data.access_token)
-      localStorage.setItem('refresh_token', res.data.refresh_token)
+      setSession(res.data.access_token, res.data.refresh_token)
       navigate('/dashboard')
     } catch (err) {
       // Was: `detail || 'Invalid email or password'`, which reported a network

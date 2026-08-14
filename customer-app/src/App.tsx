@@ -7,6 +7,7 @@ import TravellerLoginPage from './features/trip/TravellerLoginPage'
 
 // Onboarding — screens 1-6
 import LoginPage from './features/onboarding/pages/LoginPage'
+import GoogleCallbackPage from './features/onboarding/pages/GoogleCallbackPage'
 import PersonalInfoPage from './features/onboarding/pages/PersonalInfoPage'
 import AddressPage from './features/onboarding/pages/AddressPage'
 import OtpPage from './features/onboarding/pages/OtpPage'
@@ -42,6 +43,10 @@ export default function App() {
             <Route path="/" element={<Navigate to="/onboarding/login" replace />} />
 
             <Route path="/onboarding/login" element={<LoginPage />} />
+            {/* Must match OAUTH_REDIRECT_BASE + "/auth/google/callback" on the
+                backend exactly — that's the redirect_uri baked into both the
+                consent-screen URL and the code exchange. */}
+            <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
             <Route path="/onboarding/personal-info" element={<PersonalInfoPage />} />
             {/* Steps run in order. `terms` additionally requires a verified OTP
                 — see RequireStep for why that check is necessary but not

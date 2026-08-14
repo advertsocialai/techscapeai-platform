@@ -41,7 +41,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | Phase | Goal | Item count | Blocking type |
 |---|---|---|---|
 | [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 0 remaining (3 DONE) | ✅ |
-| [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 9 | 🔑 |
+| [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 10 | 🔑 |
 | [2](#phase-2--voice-pipeline-go-live) | A real phone call, end to end | 7 | 🔑 (built on Phase 1) |
 | [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 3 | 🔑🚦 |
 | [4](#phase-4--payments--messaging-go-live) | Real money, real WhatsApp | 6 | 🔑💰💬🚦 |
@@ -98,6 +98,7 @@ specifically so this would be true.
 | 1.7 | 🔑 Razorpay | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Real payment links (B-P4-01) — see [Phase 4.1](#41--one-real-razorpay-payment-link--) for the human-confirmation gate that follows | `stub://` links; full status machine already runs against real DB rows |
 | 1.8 | 🔑 WhatsApp/Meta | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` (or BSP equivalent) | Real WhatsApp sends (B-P4-02) — see [Phase 4.2](#42--one-real-whatsapp-send--) | Writes to `whatsapp_outbox`, calls nothing |
 | 1.9 | 🔑 Sentry | `SENTRY_DSN` (api), `VITE_SENTRY_DSN` (both frontends) + `pip install sentry-sdk` + `npm install @sentry/browser` in both apps | Live error tracking + the wave-2 alerting rules firing for real ([BLK-6](#reference-blocker-index)) | Stub transport: events logged + counted, nothing leaves the process |
+| 1.10 | 🔑 Google OAuth | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_BASE` (must equal customer-app's public origin, e.g. `https://stagingklara.techscapeai.in` — NOT the API's own URL) | "Continue with Google" on `customer-app` `/onboarding/login` (B-FE7-09) | `GET /auth/oauth/google/url` 503s with "Google OAuth not configured" |
 
 **Verification after each addition:** `scripts/regression_check.sh` (the floor check — login +
 one authenticated GET), then the credential-specific test named in its BLOCKERS.md row above.
@@ -387,6 +388,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-FE7-04 | 9.1 ✅ | Password echoed in 422 — RESOLVED 2026-08-10 |
 | B-FE7-07 | 9.2 ✅ | No verified-OTP requirement at registration — RESOLVED 2026-08-10 |
 | B-FE7-08 | 3.3 ✅ | Multi-agency traveller lookup — RESOLVED 2026-08-10 |
+| B-FE7-09 | 1.10 | Google OAuth credentials — customer-app code complete, gated on GOOGLE_OAUTH_CLIENT_ID/SECRET |
 | B-SPRINT2B-01 | 0.1 | Supabase access unavailable from this sandbox |
 | B-SPRINT2B-02 | 10 | fastembed model can't download in this sandbox |
 | DEBT-01 | 2.2 | Latency headroom decision (inline vs. async) |

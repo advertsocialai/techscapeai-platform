@@ -43,6 +43,15 @@ function clearSession() {
   localStorage.removeItem(REFRESH_KEY)
 }
 
+// Exported so every login path (password, Google OAuth callback, ...) writes
+// the SAME keys the request interceptor reads. A page that hand-rolls
+// `localStorage.setItem('access_token', ...)` looks like a successful login
+// and then silently sends every subsequent request unauthenticated.
+export function setSession(accessToken: string, refreshToken: string) {
+  localStorage.setItem(ACCESS_KEY, accessToken)
+  localStorage.setItem(REFRESH_KEY, refreshToken)
+}
+
 async function refreshAccessToken(): Promise<string> {
   const refreshToken = localStorage.getItem(REFRESH_KEY)
   if (!refreshToken) throw new Error('No refresh token')
