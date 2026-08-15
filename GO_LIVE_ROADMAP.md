@@ -50,9 +50,9 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [7](#phase-7--multi-tenant-real-test) | Prove isolation against a real second agency | 3 | 🚦🏢 |
 | [8](#phase-8--marketing-site-new-scope) | The `frontend/` site CLAUDE.md describes | 1 | 🚦 (new scope) |
 | [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 0 remaining (2 DONE) | ✅ |
-| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 8 | 🛠️ |
+| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 6 | 🛠️ |
 
-**43 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
+**41 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
 actionable immediately in any session; Phase 10 is real but does not block go-live.
 
 ---
@@ -337,8 +337,6 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 | ID | One-line fix |
 |---|---|
 | B-P3-07 | Local dev only (not this sandbox, not production): `colima start && supabase start -x vector,logflare` before running regression checks against a local stack |
-| DEBT-09 | Keyword matching uses unanchored substrings (`"may"` fires on *maybe*) — switch to `\b`-bounded regex |
-| DEBT-11 | `fx_rate_at()` returning NULL pre-snapshot is correct, but nothing forces callers to handle it — make the rollup endpoint fail loudly instead of silently dropping rows |
 | DEBT-12 | Recorded intentionally: Plivo verifier fails OPEN when unset, Razorpay fails CLOSED — if ever "unified", go closed, never open |
 | DEBT-14 | *(Already fixed — `vite.config.ts` `/ws` proxy entry added.)* |
 | DEBT-15 | Five spec'd WS message types are never emitted — see [2.6](#26--fix-the-ws-contract-drift-before-any-dashboard-is-built-against-it-debt-05-). `whisper`'s own dead scaffolding (`WhisperMessage`, `whispers` field) was removed from agency-dashboard in the 2026-08-15 audit fix — the remaining four (`speaking`/`intent`/`event`/`extraction`) were never given interfaces at all, so there's nothing left to remove for them |
@@ -416,9 +414,9 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | DEBT-06 | 2.7 | Fire-and-forget task leak in schedule() |
 | DEBT-07 | 1.3 | Sentiment score is a clamped-constant EMA |
 | DEBT-08 | 10 ✅ | Abrupt hangup discards buffered audio — RESOLVED 2026-08-10, `_process_call_stop()` runs on both stop and disconnect paths |
-| DEBT-09 | 10 | Unanchored keyword substring matching |
+| DEBT-09 | 10 ✅ | Unanchored keyword substring matching — RESOLVED, both keyword scorers use `\b`-bounded regex, verified 2026-08-15 |
 | DEBT-10 | 10 ✅ | WhatsApp session-window state not shared across workers — RESOLVED 2026-08-10, migration 0023 |
-| DEBT-11 | 10 | `fx_rate_at()` NULL not enforced on callers |
+| DEBT-11 | 10 ✅ | `fx_rate_at()` NULL not enforced on callers — RESOLVED, rollup routes NULLs into an explicit `unconvertible` bucket, verified 2026-08-15 |
 | DEBT-12 | 10 | Recorded intentionally — do not "fix" the Plivo/Razorpay fail-open/closed asymmetry |
 | DEBT-13 | 10 ✅ | `TakeoverState` duplicated in two type files — RESOLVED, `types/ws.ts` re-exports from `types/travel.ts` |
 | DEBT-15 | 2.6 | Five spec'd WS message types never emitted — `whisper`'s dead scaffolding removed 2026-08-15; the other four were never given interfaces |
