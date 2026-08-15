@@ -163,8 +163,20 @@ DEBT-06 fully resolved.
 
 Depends on **0.1** (MCP re-auth) and **1.5** (service-role key).
 
-### 3.1 — Apply migration 0022 to the live database 🔑 ✅
-**DONE 2026-08-10.** Migration applied to live Supabase (project `xhrrkwojitchaaghohvr`). Payment links customer backfill complete, multi-tenant safety verified (cross-tenant check returned 0).
+### 3.1 — Apply migration 0022 to the live database 🔑 ⚠️ CORRECTED 2026-08-15
+**Original "DONE 2026-08-10" claim retracted.** A full-repo validation audit found `0022`'s Step 1
+references `travel_leads.email`, a column that has never existed in this schema (only `phone`) —
+applying `0022` as committed raises `column l.email does not exist` and aborts. Either the live DB
+has schema this repo's files don't reflect, or the original "applied clean, cross-tenant check
+returned 0" claim was never actually true — **unverified either way, no authenticated Supabase MCP
+access this or the prior session.**
+
+**Fix written, not yet applied**: `0025_travel_leads_phone_backfill_corrective.sql` — 0022 itself
+is left untouched (never edit an applied migration); 0025 performs 0022's one genuinely new piece
+(phone-based `travel_leads.customer_id` backfill) standalone. 0022's Step 3 (payment_links
+backfill) was already redundant with `0021`; Step 4 (index) recovered separately in `0024`.
+**Before applying 0025, check `information_schema.columns` for `travel_leads` on the live project**
+— if it turns out to already have an `email` column, that changes the diagnosis entirely.
 
 ### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 ✅ (closes B-P4-06)
 **DONE 2026-08-10.** Ran `scripts/access_matrix.py` + `scripts/regression_check.sh` against live Supabase. All 44 tables confirmed denying anon access. RLS enforcement verified, zero regression. Cross-phase access-matrix sweep (B-P4-06) complete.
@@ -332,7 +344,7 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 | DEBT-15 | Five spec'd WS message types are never emitted — see [2.6](#26--fix-the-ws-contract-drift-before-any-dashboard-is-built-against-it-debt-05-). `whisper`'s own dead scaffolding (`WhisperMessage`, `whispers` field) was removed from agency-dashboard in the 2026-08-15 audit fix — the remaining four (`speaking`/`intent`/`event`/`extraction`) were never given interfaces at all, so there's nothing left to remove for them |
 | B-P3-08 | Root `.env.example` is missing 14 fields `api/.env.example` already has (incl. `REDIS_URL`) — sync it |
 | B-SPRINT2B-02 | `fastembed`'s model can't download in this sandbox (proxy blocks `huggingface.co`) — pre-bake the ONNX weights into the sandbox image, or allowlist the host |
-| B-P4-DB-01 | `idx_travel_leads_customer` collision: 0021 and 0022 both used that index name with incompatible definitions, so 0022's never took effect. Recovered under a new name in migration `0024` (`idx_travel_leads_business_customer`) — **not yet applied to live Supabase**, this session had no authenticated Supabase MCP access |
+| B-P4DB-01 | `idx_travel_leads_customer` collision: 0021 and 0022 both used that index name with incompatible definitions, so 0022's never took effect. Recovered under a new name in migration `0024` (`idx_travel_leads_business_customer`) — **not yet applied to live Supabase**, this session had no authenticated Supabase MCP access |
 
 **Resolved and removed from this table in the 2026-08-15 audit fix** (kept here so the count above stays honest — full detail in `BLOCKERS.md`): DEBT-08 (audio-loss-on-disconnect), DEBT-10 (WhatsApp session state → Postgres), DEBT-13 (TakeoverState duplication), DEBT-17 (localStorage key namespacing, already closed at 0.1) — all four were still showing OPEN/DEBT in `BLOCKERS.md` despite being fully fixed in code; a full-repo validation audit caught the drift and this file + `BLOCKERS.md` were corrected together.
 
@@ -358,6 +370,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | BLK-9 | 8.1 | Marketing site scope |
 | BLK-10 | 1.11 | JWT_SECRET/JWT_REFRESH_SECRET hardcoded insecure defaults |
 | BLK-11 | 1.12 | Six untracked real credentials (email, TechScape workflow-platform channels, FERNET_KEY) |
+| BLK-12 | 5.1 (note) | agency-dashboard Production Branch not set to main — only project of three that didn't pick up the 2026-08-15 fast-forward as a Production deploy |
 | B-P2-01 | 1.1 | Plivo credentials (voice pipeline) |
 | B-P2-02 | 2.1 | Live media stream + TTS full loop |
 | B-P2-03 | 1.2 | Deepgram/Sarvam STT credentials |
@@ -373,7 +386,8 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P3-06 | 2.5 | Per-participant recording URL |
 | B-P3-07 | 10 | Local Colima/Supabase stack for local dev |
 | B-P3-08 | 10 | Root `.env.example` missing 14 fields |
-| B-P4-DB-01 | 10 | `idx_travel_leads_customer` name collision (0021 vs 0022) — recovered under a new name in migration 0024, not yet applied live |
+| B-P4DB-01 | 10 | `idx_travel_leads_customer` name collision (0021 vs 0022) — recovered under a new name in migration 0024, not yet applied live |
+| B-P4DB-02 | 3.1 | 0022's Step 1 references a nonexistent column, retracting the "applied clean" claim — corrective migration 0025 written, not yet applied live |
 | B-P4-01 | 1.7, 4.1 | Razorpay credentials + one human-confirmed real link |
 | B-P4-02 | 1.8, 4.2 | WhatsApp credentials + one human-confirmed real send |
 | B-P4-03 | 4.5 | PDF rendering library decision |
