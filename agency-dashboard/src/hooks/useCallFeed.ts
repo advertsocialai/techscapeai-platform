@@ -25,7 +25,6 @@ import type {
   TakeoverStateMessage,
   TranscriptMessage,
   UnknownMessage,
-  WhisperMessage,
 } from '../types/ws'
 
 /* ────────────────────────────────────────────────────────────────────── */
@@ -52,8 +51,6 @@ export interface CallFeedData {
   transcripts: TranscriptMessage[]
   sentiments: SentimentMessage[]
   suggestions: SuggestionMessage[]
-  /** Documented-but-never-emitted variant. Expect this to stay empty. */
-  whispers: WhisperMessage[]
   /** Latest lifecycle frame — `null` until the backend sends one. */
   callStatus: CallStatusMessage | null
   /**
@@ -73,7 +70,6 @@ const EMPTY_DATA: CallFeedData = {
   transcripts: [],
   sentiments: [],
   suggestions: [],
-  whispers: [],
   callStatus: null,
   takeover: null,
   unknown: [],
@@ -110,8 +106,6 @@ function reducer(state: CallFeedData, action: CallFeedAction): CallFeedData {
       return { ...base, sentiments: appendCapped(state.sentiments, message, caps.sentiments) }
     case 'suggestion':
       return { ...base, suggestions: appendCapped(state.suggestions, message, caps.suggestions) }
-    case 'whisper':
-      return { ...base, whispers: appendCapped(state.whispers, message, caps.suggestions) }
     case 'call_status':
       return { ...base, callStatus: message }
     case 'takeover_state':

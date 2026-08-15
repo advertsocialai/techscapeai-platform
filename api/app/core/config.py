@@ -67,6 +67,23 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str = ""   # English/Hindi STT (default engine)
     ELEVENLABS_API_KEY: str = ""  # TTS
 
+    # ── GoGaga payments (Phase 4) — Razorpay ──
+    # Were previously read via getattr(settings, name, default) in
+    # services/payments/__init__.py, which extra="ignore" above silently
+    # defeats: an undeclared env var is never loaded onto the Settings
+    # instance, so razorpay_configured() stayed False no matter what was set.
+    # Declaring them here is what actually makes Phase 1.7 a real "add the
+    # credential, no code changes" unlock.
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+
+    # ── GoGaga messaging (Phase 4) — WhatsApp / Meta Cloud API ──
+    # Same undeclared-field bug as Razorpay above, hit by
+    # services/whatsapp/meta_cloud.py's getattr() calls.
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+
     # ── TechScape auth ──
     JWT_SECRET: str = "change-me-in-prod"
     JWT_REFRESH_SECRET: str = "change-me-too-in-prod"

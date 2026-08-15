@@ -12,11 +12,21 @@ FACTORY RULE
 Razorpay is selected only when BOTH RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are
 present in settings. Otherwise the deterministic StubGateway is returned.
 
-Credentials are read with getattr(settings, "...", "") on purpose: config.py is
-owned by another agent this phase, and this indirection means the payments
-package needs no edit there — the moment those names exist in the environment
-(pydantic-settings picks them up, or config.py declares them) the factory
-switches to the live gateway with no code change here.
+Credentials are read via _setting(), a getattr(settings, "...", "") indirection.
+RAZORPAY_KEY_ID/KEY_SECRET/WEBHOOK_SECRET are now declared fields in
+config.py's Settings class, so this correctly picks up real env values.
+_setting() itself stays — it's still load-bearing for STRIPE_SECRET_KEY /
+STRIPE_WEBHOOK_SECRET / STUB_WEBHOOK_SECRET, none of which are (or need to be)
+declared Settings fields, since Stripe is a Phase 5 skeleton that always
+raises NotImplementedError.
+
+NOTE (found in a full-repo audit): this indirection previously assumed
+pydantic-settings would attach ANY matching env var to the Settings instance
+even if config.py never declared the field. That assumption was false —
+config.py sets extra="ignore", which silently drops undeclared env vars, so
+razorpay_configured() stayed False forever regardless of what was set in the
+environment. Declaring the fields in config.py was the actual fix; this
+indirection alone was not enough.
 
 In this sandbox no Razorpay credentials exist, so gateway_mode() == "stub" and
 NO network call is ever made.

@@ -129,19 +129,15 @@ export interface SentimentMessage {
 }
 
 /**
- * suggestion_service.py:133 — the real "whisper to the agent" channel.
+ * suggestion_service.py:133 — the "whisper to the agent" channel.
  *
- * DOC DISAGREEMENT (the important one): api-conventions.md defines this as
- * `{"type": "whisper", "suggestion": "...", "confidence": 0.82, "seq": 13}`.
- * The code emits `{"type": "suggestion", "text": ..., "mode": ...}` — a
- * different discriminator, a different field name for the payload, and NO
- * confidence score is computed anywhere in the service. This interface types
- * what is on the wire.
+ * api-conventions.md was corrected to match this shape (`{type, call_id,
+ * text, mode}`, discriminator `suggestion`) — it previously specified a
+ * `whisper` frame with `{suggestion, confidence}` that was never emitted.
  */
 export interface SuggestionMessage {
   type: 'suggestion'
   call_id: string
-  /** The suggestion body. The doc calls this field `suggestion`; the code sends `text`. */
   text: string
   /** Which generator produced it — Claude, or the keyword fallback. */
   mode: SuggestionMode
@@ -160,24 +156,6 @@ export interface TakeoverStateMessage {
 /* ────────────────────────────────────────────────────────────────────────
  * Documented-but-unseen
  * ──────────────────────────────────────────────────────────────────────── */
-
-/**
- * NOT EMITTED BY BACKEND as of Phase 5.
- *
- * This is the api-conventions.md shape verbatim. No `call_feed.publish` call
- * site produces `type: "whisper"` — the live equivalent is `SuggestionMessage`
- * above. Kept in the union so that IF the backend is ever brought in line with
- * its own doc, the frame lands on a typed branch instead of falling through to
- * `UnknownMessage`. Until then a `whisper` handler is dead code: build the UI
- * against `SuggestionMessage`.
- */
-export interface WhisperMessage {
-  type: 'whisper'
-  call_id: string
-  seq?: number
-  suggestion: string
-  confidence: number
-}
 
 /**
  * NOT EMITTED BY BACKEND as of Phase 5 — and deliberately NOT given interfaces.
@@ -239,25 +217,18 @@ export type KnownCallFeedMessage =
   | SentimentMessage
   | SuggestionMessage
   | TakeoverStateMessage
-  | WhisperMessage
 
 export type CallFeedMessage = KnownCallFeedMessage | UnknownMessage
 
 export type KnownCallFeedMessageType = KnownCallFeedMessage['type']
 
-/**
- * Runtime companion to `KnownCallFeedMessageType`.
- *
- * The first five are live. `whisper` is documented-but-unseen (see above) and
- * is listed so that a doc-conformant backend would be understood immediately.
- */
+/** Runtime companion to `KnownCallFeedMessageType` — the five real emitted types. */
 export const KNOWN_CALL_FEED_MESSAGE_TYPES = [
   'transcript',
   'call_status',
   'sentiment',
   'suggestion',
   'takeover_state',
-  'whisper',
 ] as const
 
 const KNOWN_TYPE_SET: ReadonlySet<string> = new Set<string>(KNOWN_CALL_FEED_MESSAGE_TYPES)

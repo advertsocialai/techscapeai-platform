@@ -62,9 +62,12 @@ emitted:**
 
 ### Rules
 
-- **`seq` is hardcoded to `1`** at its single emit site, and only `transcript`
-  carries it. It is NOT monotonic. **Do not build gap detection on it** — it
-  would fire constantly and lie to the user.
+- **`seq` is real and monotonic per call**, via `voice_turn_service.py`'s
+  `_next_seq(db, call_id)` (counts existing transcript rows), used at both
+  emit sites (`voice_turn_service.py` and `webhooks_voice.py`, which imports
+  it). This corrects an earlier version of this doc that said `seq` was
+  hardcoded to `1` — that was true before DEBT-05's fix, not now. Verified
+  against the code in a full-repo audit, 2026-08-15.
 - Unknown `type` must be ignored by clients, never crash.
 - **Auth: the `Sec-WebSocket-Protocol` subprotocol — `['bearer', <jwt>]`.**
   This replaced a header-only dependency that made the endpoint *unreachable

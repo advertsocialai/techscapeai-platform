@@ -41,7 +41,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | Phase | Goal | Item count | Blocking type |
 |---|---|---|---|
 | [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 0 remaining (3 DONE) | ✅ |
-| [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 10 | 🔑 |
+| [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 12 | 🔑 |
 | [2](#phase-2--voice-pipeline-go-live) | A real phone call, end to end | 7 | 🔑 (built on Phase 1) |
 | [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 3 | 🔑🚦 |
 | [4](#phase-4--payments--messaging-go-live) | Real money, real WhatsApp | 6 | 🔑💰💬🚦 |
@@ -50,9 +50,9 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [7](#phase-7--multi-tenant-real-test) | Prove isolation against a real second agency | 3 | 🚦🏢 |
 | [8](#phase-8--marketing-site-new-scope) | The `frontend/` site CLAUDE.md describes | 1 | 🚦 (new scope) |
 | [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 0 remaining (2 DONE) | ✅ |
-| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 11 | 🛠️ |
+| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 8 | 🛠️ |
 
-**44 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
+**43 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
 actionable immediately in any session; Phase 10 is real but does not block go-live.
 
 ---
@@ -95,10 +95,12 @@ specifically so this would be true.
 | 1.4 | 🔑 ElevenLabs | `ELEVENLABS_API_KEY` | Real TTS synthesis + barge-in latency (B-P2-05) | `synthesize_speech()` returns silence |
 | 1.5 | 🔑 Supabase service role | `SUPABASE_SERVICE_ROLE_KEY` | The managed-Supabase leg of the data path — RLS-as-anon live, service-role writes ([BLK-2](#reference-blocker-index)) | The app path itself is already proven via the local seam (`scripts/local_seam/`) — this closes only the "against the real host" half |
 | 1.6 | 🔑 Redis | `REDIS_URL` | Multi-worker rate limiting AND multi-worker live-call feed/JTI consistency in ONE variable (B-P2-06, B-P3-04, DEBT-02 — same root cause, one fix) — both already have graceful in-memory fallback wired | Both features work today, per-process only |
-| 1.7 | 🔑 Razorpay | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Real payment links (B-P4-01) — see [Phase 4.1](#41--one-real-razorpay-payment-link--) for the human-confirmation gate that follows | `stub://` links; full status machine already runs against real DB rows |
-| 1.8 | 🔑 WhatsApp/Meta | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` (or BSP equivalent) | Real WhatsApp sends (B-P4-02) — see [Phase 4.2](#42--one-real-whatsapp-send--) | Writes to `whatsapp_outbox`, calls nothing |
+| 1.7 | 🔑 Razorpay | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | Real payment links (B-P4-01) — see [Phase 4.1](#41--one-real-razorpay-payment-link--) for the human-confirmation gate that follows | `stub://` links; full status machine already runs against real DB rows. **Fixed 2026-08-15**: these three env vars were never declared `Settings` fields, and `config.py`'s `extra="ignore"` silently defeated the `getattr()` workaround that read them — adding the credential per this row's instructions would have done nothing. Now declared; this row's "add credential, no code change" promise is finally true |
+| 1.8 | 🔑 WhatsApp/Meta | `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` (or BSP equivalent) | Real WhatsApp sends (B-P4-02) — see [Phase 4.2](#42--one-real-whatsapp-send--) | Writes to `whatsapp_outbox`, calls nothing. **Fixed 2026-08-15**: same undeclared-field bug as 1.7 above, same fix |
 | 1.9 | 🔑 Sentry | `SENTRY_DSN` (api), `VITE_SENTRY_DSN` (both frontends) + `pip install sentry-sdk` + `npm install @sentry/browser` in both apps | Live error tracking + the wave-2 alerting rules firing for real ([BLK-6](#reference-blocker-index)) | Stub transport: events logged + counted, nothing leaves the process |
 | 1.10 | 🔑 Google OAuth | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `OAUTH_REDIRECT_BASE` (must equal customer-app's public origin, e.g. `https://stagingklara.techscapeai.in` — NOT the API's own URL) | "Continue with Google" on `customer-app` `/onboarding/login` (B-FE7-09) | `GET /auth/oauth/google/url` 503s with "Google OAuth not configured" |
+| 1.11 | 🔑🔒 JWT signing secrets | `JWT_SECRET`, `JWT_REFRESH_SECRET` (BLK-10) | Token integrity, every route in both `techscape` and `travel` | **Currently hardcoded to `"change-me-in-prod"` / `"change-me-too-in-prod"`** — a real security hole, not just a stub, since anyone who knows the default can forge a valid token against any environment that never overrode it. Found in a full-repo audit; was untracked anywhere before 2026-08-15 |
+| 1.12 | 🔑 Email + TechScape workflow-platform channels | `SENDGRID_API_KEY`/`RESEND_API_KEY` (email), `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_PHONE_NUMBER`/`TWILIO_WEBHOOK_AUTH_TOKEN`, `WAPI_API_TOKEN`/`WAPI_WEBHOOK_SECRET`, `FERNET_KEY` (BLK-11) | Contact-form notifications, auth password-reset email, the TechScape Workflow Platform's own SMS/WhatsApp channels (a separate credential set from GoGaga's Plivo/WhatsApp above), and at-rest encryption of stored integration credentials | All eight are already declared `Settings` fields — genuine "add credential, no code change" unlocks, same pattern as the rest of Phase 1. `FERNET_KEY` empty ⇒ derives from `JWT_SECRET`, explicitly marked DEV-only in its own comment. Found untracked in a full-repo audit, 2026-08-15 |
 
 **Verification after each addition:** `scripts/regression_check.sh` (the floor check — login +
 one authenticated GET), then the credential-specific test named in its BLOCKERS.md row above.
@@ -323,17 +325,16 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 | ID | One-line fix |
 |---|---|
 | B-P3-07 | Local dev only (not this sandbox, not production): `colima start && supabase start -x vector,logflare` before running regression checks against a local stack |
-| DEBT-08 | `WebSocketDisconnect` on the media-stream handler discards all buffered audio and marks the call `failed` — run the same stop-handler path on disconnect so an abrupt hangup (common on mobile) doesn't lose the whole call's data |
 | DEBT-09 | Keyword matching uses unanchored substrings (`"may"` fires on *maybe*) — switch to `\b`-bounded regex |
-| DEBT-10 | WhatsApp 24h session-window state lives in an in-process dict — persist to Postgres/Redis so it's correct under multiple workers |
 | DEBT-11 | `fx_rate_at()` returning NULL pre-snapshot is correct, but nothing forces callers to handle it — make the rollup endpoint fail loudly instead of silently dropping rows |
 | DEBT-12 | Recorded intentionally: Plivo verifier fails OPEN when unset, Razorpay fails CLOSED — if ever "unified", go closed, never open |
-| DEBT-13 | `TakeoverState` duplicated in `types/ws.ts` and `types/travel.ts` — pick one home, re-export |
 | DEBT-14 | *(Already fixed — `vite.config.ts` `/ws` proxy entry added.)* |
-| DEBT-15 | Five spec'd WS message types are never emitted — see [2.6](#26--fix-the-ws-contract-drift-before-any-dashboard-is-built-against-it-debt-05-) |
-| DEBT-17 | `customer-app` and `agency-dashboard` use different localStorage key names for tokens — namespace both before ever co-hosting |
+| DEBT-15 | Five spec'd WS message types are never emitted — see [2.6](#26--fix-the-ws-contract-drift-before-any-dashboard-is-built-against-it-debt-05-). `whisper`'s own dead scaffolding (`WhisperMessage`, `whispers` field) was removed from agency-dashboard in the 2026-08-15 audit fix — the remaining four (`speaking`/`intent`/`event`/`extraction`) were never given interfaces at all, so there's nothing left to remove for them |
 | B-P3-08 | Root `.env.example` is missing 14 fields `api/.env.example` already has (incl. `REDIS_URL`) — sync it |
 | B-SPRINT2B-02 | `fastembed`'s model can't download in this sandbox (proxy blocks `huggingface.co`) — pre-bake the ONNX weights into the sandbox image, or allowlist the host |
+| B-P4-DB-01 | `idx_travel_leads_customer` collision: 0021 and 0022 both used that index name with incompatible definitions, so 0022's never took effect. Recovered under a new name in migration `0024` (`idx_travel_leads_business_customer`) — **not yet applied to live Supabase**, this session had no authenticated Supabase MCP access |
+
+**Resolved and removed from this table in the 2026-08-15 audit fix** (kept here so the count above stays honest — full detail in `BLOCKERS.md`): DEBT-08 (audio-loss-on-disconnect), DEBT-10 (WhatsApp session state → Postgres), DEBT-13 (TakeoverState duplication), DEBT-17 (localStorage key namespacing, already closed at 0.1) — all four were still showing OPEN/DEBT in `BLOCKERS.md` despite being fully fixed in code; a full-repo validation audit caught the drift and this file + `BLOCKERS.md` were corrected together.
 
 ---
 
@@ -355,6 +356,8 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | BLK-7 | 6.3 | Backup policy undecided |
 | BLK-8 | 6.1 | Consent wording legal review |
 | BLK-9 | 8.1 | Marketing site scope |
+| BLK-10 | 1.11 | JWT_SECRET/JWT_REFRESH_SECRET hardcoded insecure defaults |
+| BLK-11 | 1.12 | Six untracked real credentials (email, TechScape workflow-platform channels, FERNET_KEY) |
 | B-P2-01 | 1.1 | Plivo credentials (voice pipeline) |
 | B-P2-02 | 2.1 | Live media stream + TTS full loop |
 | B-P2-03 | 1.2 | Deepgram/Sarvam STT credentials |
@@ -370,6 +373,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P3-06 | 2.5 | Per-participant recording URL |
 | B-P3-07 | 10 | Local Colima/Supabase stack for local dev |
 | B-P3-08 | 10 | Root `.env.example` missing 14 fields |
+| B-P4-DB-01 | 10 | `idx_travel_leads_customer` name collision (0021 vs 0022) — recovered under a new name in migration 0024, not yet applied live |
 | B-P4-01 | 1.7, 4.1 | Razorpay credentials + one human-confirmed real link |
 | B-P4-02 | 1.8, 4.2 | WhatsApp credentials + one human-confirmed real send |
 | B-P4-03 | 4.5 | PDF rendering library decision |
@@ -382,8 +386,8 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P5-02 | 7.1 | Tenant-B migration `0018` not applied live |
 | B-P5-03 | 7.2 | 🏢 Plivo Reseller application |
 | B-P5-04 | 7.3 | 🏢 Real invoicing of a second agency |
-| B-FE1-02 | 5.1 | Vercel Root Directory — agency-dashboard |
-| B-FE1-03 | 5.1 | Vercel Root Directory — techscapeai-platform |
+| B-FE1-02 | 5.1 ✅ | Vercel Root Directory — agency-dashboard — RESOLVED, duplicate of BLK-4 |
+| B-FE1-03 | 5.1 ✅ | Vercel Root Directory — techscapeai-platform — RESOLVED, duplicate of BLK-4 |
 | B-FE7-01 | 3.3 (note) | Agency-self-serve-vs-traveller-facing — answered in practice by B-FE7-02/03, ledger row stale |
 | B-FE7-04 | 9.1 ✅ | Password echoed in 422 — RESOLVED 2026-08-10 |
 | B-FE7-07 | 9.2 ✅ | No verified-OTP requirement at registration — RESOLVED 2026-08-10 |
@@ -393,18 +397,18 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-SPRINT2B-02 | 10 | fastembed model can't download in this sandbox |
 | DEBT-01 | 2.2 | Latency headroom decision (inline vs. async) |
 | DEBT-02 | 1.6 | In-memory JTI blacklist — needs Redis |
-| DEBT-04 | 2.1 (note) | Superseded by DEBT-20 (resolved), ledger row stale |
-| DEBT-05 | 2.6 | WS contract drift vs. api-conventions.md |
+| DEBT-04 | 2.1 (note) ✅ | Superseded by DEBT-20 — RESOLVED, ledger row corrected 2026-08-15 |
+| DEBT-05 | 2.6 ✅ | WS contract drift vs. api-conventions.md — RESOLVED, both ends aligned on `suggestion`/{text,mode}, seq now monotonic |
 | DEBT-06 | 2.7 | Fire-and-forget task leak in schedule() |
 | DEBT-07 | 1.3 | Sentiment score is a clamped-constant EMA |
-| DEBT-08 | 10 | Abrupt hangup discards buffered audio |
+| DEBT-08 | 10 ✅ | Abrupt hangup discards buffered audio — RESOLVED 2026-08-10, `_process_call_stop()` runs on both stop and disconnect paths |
 | DEBT-09 | 10 | Unanchored keyword substring matching |
-| DEBT-10 | 10 | WhatsApp session-window state not shared across workers |
+| DEBT-10 | 10 ✅ | WhatsApp session-window state not shared across workers — RESOLVED 2026-08-10, migration 0023 |
 | DEBT-11 | 10 | `fx_rate_at()` NULL not enforced on callers |
 | DEBT-12 | 10 | Recorded intentionally — do not "fix" the Plivo/Razorpay fail-open/closed asymmetry |
-| DEBT-13 | 10 | `TakeoverState` duplicated in two type files |
-| DEBT-15 | 2.6 | Five spec'd WS message types never emitted |
-| DEBT-17 | 10 | Divergent localStorage token key names across apps |
+| DEBT-13 | 10 ✅ | `TakeoverState` duplicated in two type files — RESOLVED, `types/ws.ts` re-exports from `types/travel.ts` |
+| DEBT-15 | 2.6 | Five spec'd WS message types never emitted — `whisper`'s dead scaffolding removed 2026-08-15; the other four were never given interfaces |
+| DEBT-17 | 10 ✅ | Divergent localStorage token key names across apps — RESOLVED, both apps use `gogaga_access_token`/`gogaga_refresh_token` |
 
 ---
 
@@ -452,3 +456,47 @@ between sessions.
   `DEBT-20` respectively, but their own status cells were never flipped) — noted in-line at 3.3
   and 2.1 rather than silently edited, since correcting `BLOCKERS.md` itself is that file's own
   maintenance, not this skill's.
+
+- **2026-08-15 — 13-agent full-repo validation workflow, audit-fix batch.** Ran a systematic
+  audit (deploy state, credential inventory, git/branch health, backend auth/voice/payments/
+  WhatsApp, migrations, both frontends, WS contract cross-check) plus 3 drift-verification agents
+  cross-referencing findings against this file / `BLOCKERS.md` / `GOGAGA_ANALYSIS_REPORT.md`.
+  Fixed the confirmed, unambiguous findings:
+  - **`RAZORPAY_KEY_ID`/`KEY_SECRET`/`WEBHOOK_SECRET` and `WHATSAPP_ACCESS_TOKEN`/
+    `PHONE_NUMBER_ID` were never declared `Settings` fields** in `config.py` — `extra="ignore"`
+    silently defeated the `getattr()` workaround that read them, so Phase 1.7/1.8's "add
+    credential, no code change" promise was false as written. Declared as real fields; both rows
+    corrected.
+  - **`JWT_SECRET`/`JWT_REFRESH_SECRET` ship hardcoded (`"change-me-in-prod"`) and were untracked
+    anywhere** — added as Phase 1.11 / `BLK-10`, a real security gap, not just a stub.
+  - **Six more real credentials** (`SENDGRID_API_KEY`/`RESEND_API_KEY`, Twilio's four fields,
+    `WAPI_API_TOKEN`/`WAPI_WEBHOOK_SECRET`, `FERNET_KEY`) were declared in `config.py` but never
+    tracked in Phase 1 — added as Phase 1.12 / `BLK-11`.
+  - **`idx_travel_leads_customer` was defined twice** (migrations 0021 and 0022) with different,
+    incompatible column orders — `CREATE INDEX IF NOT EXISTS` matches by name only, so 0022's
+    version silently never took effect. Recovered under a new name in migration `0024`
+    (`idx_travel_leads_business_customer`); 0021/0022 left untouched (never edit an applied
+    migration). **Not yet applied to live Supabase** — no authenticated Supabase MCP access this
+    session.
+  - **Dead `WhisperMessage`/`whispers` scaffolding removed from `agency-dashboard`** —
+    `api-conventions.md` had already been corrected to say `whisper` is never emitted, but the
+    frontend still carried an unused, always-empty type/field kept "in case" the backend was ever
+    brought in line with a doc claim that itself no longer exists. Also corrected
+    `api-conventions.md`'s stale claim that `seq` is hardcoded to `1` (it's been genuinely
+    monotonic since `DEBT-05`'s fix).
+  - **Six `BLOCKERS.md` rows found stale-OPEN despite being fully fixed in code** — `DEBT-04`
+    (superseded by `DEBT-20`), `DEBT-05`, `DEBT-08`, `DEBT-10`, `DEBT-13`, `DEBT-17`, and
+    `B-FE1-02`/`B-FE1-03` (duplicates of already-resolved `BLK-4`) — all corrected to RESOLVED
+    with evidence. Phase 10's open-backlog table and the phase-index item counts updated to match
+    (11 → 8).
+
+  **Two findings deliberately NOT auto-fixed, flagged to the user instead:** (1) migration `0022`
+  references `travel_leads.email`, a column that has never existed in this schema (only `phone`)
+  — this directly contradicts Phase 3.1's "applied clean, zero cross-tenant rows" claim, and
+  without live Supabase access it's unknown whether the live DB has actually diverged from this
+  repo's schema files or whether that claim was never true. (2) every sampled Vercel deployment
+  across all three projects has `target: null` (never "Production"), and `main` is 111 commits
+  behind `Klara-ai` — the plain production-looking domains are very likely serving stale,
+  pre-auth-fix code even though `BLK-4` correctly says builds go green. Both need a human decision
+  (check the live DB, and/or decide whether to fast-forward `main` and trigger a real production
+  deploy) before any fix is safe to make.
