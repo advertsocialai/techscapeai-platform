@@ -43,7 +43,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 0 remaining (3 DONE) | ✅ |
 | [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 12 | 🔑 |
 | [2](#phase-2--voice-pipeline-go-live) | A real phone call, end to end | 7 | 🔑 (built on Phase 1) |
-| [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 2 remaining (3 DONE) | 🚦 |
+| [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 1 remaining (4 DONE) | 🚦 |
 | [4](#phase-4--payments--messaging-go-live) | Real money, real WhatsApp | 6 | 🔑💰💬🚦 |
 | [5](#phase-5--deploys--ci-go-live) | Green deploys, green CI | 0 remaining (2 DONE) | ✅ |
 | [6](#phase-6--compliance--legal) | Legally defensible consent + policy docs | 4 | 🚦 (legal review) |
@@ -219,26 +219,19 @@ with no visibility from this repo. Once confirmed unused (or migrated), `REVOKE 
 authenticated` on all three, and if `contact_submissions` needs anon access at all, narrow it to
 `GRANT INSERT` only.
 
-### 3.5 — Fix the traveller OTP login contract break (BLK-14) 🚦
-**Found 2026-08-15**, in a full re-validation sweep. `customer-app`'s traveller login is completely
-broken end-to-end — `travellerApi.ts` calls `POST /travel/v1/me/auth/request-otp` and
-`POST /travel/v1/me/auth/verify-otp`; neither exists anywhere on the backend, confirmed by
-enumerating every live FastAPI route. The only real traveller-auth endpoint is a single combined
-`POST /login` (email + OTP code + business_id in one call, `api/app/routers/travel/traveller.py`),
-mounted twice (`/traveller/login`, `/me/login`) from the same function — a genuinely different
-one-step contract than the two-step UX the frontend was built against. `test_router_surface.py`'s
-`travel.traveller` test targets the same nonexistent path and has been silently failing. This
-directly contradicts every earlier claim that traveller OTP login was "proven end-to-end" (this
-file's own top caveat, `GOGAGA_ANALYSIS_REPORT.md` rows 2/4, `B-FE7-02`/`03`/`08`'s RESOLVED
-notes) — those were evidently proven against a frontend/backend pairing that has since drifted
-apart, never reconciled with what's actually committed.
-**Decision needed** (production-blocking — every real traveller hitting this today gets a 404):
-(a) add the two missing endpoints (`request-otp` as a thin wrapper over the existing
-`techscape/v1/auth/otp/send` logic scoped to travellers, `verify-otp` issuing the traveller token
-via `traveller_login`'s existing logic) to match what the frontend already expects — lower risk,
-keeps the current two-step OTP UX; or (b) rewrite `travellerApi.ts`/`TravellerLoginPage.tsx` to
-call the existing single-step `/me/login` — no new backend code, but collapses the two-step form
-into one. Either way, fix `test_router_surface.py`'s stale route reference. Gowtham decides.
+### 3.5 — Fix the traveller OTP login contract break (BLK-14) ✅ RESOLVED 2026-08-15
+**Found and fixed the same day.** The root cause was a **git regression, not contract drift**:
+commit `28554c5` (2026-08-09) built the full 5-endpoint `/me/*` traveller surface (request-otp,
+verify-otp, trip, payments, messages) — exactly what `travellerApi.ts` calls — and commit
+`194fea0` (Phase 3.3, the next morning) then overwrote `traveller.py` wholesale with a
+single-`/login` version, silently deleting all five. Neither the frontend nor the tests were ever
+wrong; `test_router_surface.py` was correctly failing the whole time.
+**Fix applied**: restored the `387ce7f` version of `traveller.py` and merged Phase 3.3's
+agency-scoped `/login` endpoint back in on top (corrected to issue the `traveller_access` token
+family — `194fea0`'s version issued an agency-type token that `get_current_traveller` rejects, so
+its single-step login could never have reached `/me/trip` either). All 12 routes live again under
+both `/me/*` and `/traveller/*` mounts. Verified: full suite 250/250 green (offline mode),
+bad-OTP → enumeration-safe 401, traveller token rejected on agency endpoints (401).
 
 ---
 
@@ -441,7 +434,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P4DB-01 | 10 ✅ | `idx_travel_leads_customer` name collision (0021 vs 0022) — RESOLVED, recovered under a new name in migration 0024, applied live 2026-08-15 |
 | B-P4DB-02 | 3.1 ✅ | 0022's Step 1 references a nonexistent column, retracting the "applied clean" claim — RESOLVED, corrective migration 0025 applied live 2026-08-15 |
 | BLK-13 | 3.4 | Overly-broad anon/authenticated grants on 3 live tables (contact_submissions, gogaga_leads, gogaga_sessions) — not currently exploitable, but needs Gowtham's input before any grant change |
-| BLK-14 | 3.5 | customer-app traveller OTP login is completely broken — frontend calls two endpoints that don't exist on the backend; needs Gowtham's decision between adding the missing endpoints or rewriting the frontend to the existing single-step endpoint |
+| BLK-14 | 3.5 ✅ | customer-app traveller login break — RESOLVED 2026-08-15: was a git regression (`194fea0` overwrote the 5-endpoint traveller surface built by `28554c5`); restored + `/login` merged back in, 250/250 tests green |
 | B-P4-01 | 1.7, 4.1 | Razorpay credentials + one human-confirmed real link |
 | B-P4-02 | 1.8, 4.2 | WhatsApp credentials + one human-confirmed real send |
 | B-P4-03 | 4.5 | PDF rendering library decision |
