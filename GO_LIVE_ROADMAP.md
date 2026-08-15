@@ -43,14 +43,14 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 0 remaining (3 DONE) | ✅ |
 | [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 12 | 🔑 |
 | [2](#phase-2--voice-pipeline-go-live) | A real phone call, end to end | 7 | 🔑 (built on Phase 1) |
-| [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 3 | 🔑🚦 |
+| [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 1 remaining (3 DONE) | 🚦 |
 | [4](#phase-4--payments--messaging-go-live) | Real money, real WhatsApp | 6 | 🔑💰💬🚦 |
 | [5](#phase-5--deploys--ci-go-live) | Green deploys, green CI | 0 remaining (2 DONE) | ✅ |
 | [6](#phase-6--compliance--legal) | Legally defensible consent + policy docs | 4 | 🚦 (legal review) |
 | [7](#phase-7--multi-tenant-real-test) | Prove isolation against a real second agency | 3 | 🚦🏢 |
 | [8](#phase-8--marketing-site-new-scope) | The `frontend/` site CLAUDE.md describes | 1 | 🚦 (new scope) |
 | [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 0 remaining (2 DONE) | ✅ |
-| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 6 | 🛠️ |
+| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 5 | 🛠️ |
 
 **41 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
 actionable immediately in any session; Phase 10 is real but does not block go-live.
@@ -163,20 +163,28 @@ DEBT-06 fully resolved.
 
 Depends on **0.1** (MCP re-auth) and **1.5** (service-role key).
 
-### 3.1 — Apply migration 0022 to the live database 🔑 ⚠️ CORRECTED 2026-08-15
-**Original "DONE 2026-08-10" claim retracted.** A full-repo validation audit found `0022`'s Step 1
-references `travel_leads.email`, a column that has never existed in this schema (only `phone`) —
-applying `0022` as committed raises `column l.email does not exist` and aborts. Either the live DB
-has schema this repo's files don't reflect, or the original "applied clean, cross-tenant check
-returned 0" claim was never actually true — **unverified either way, no authenticated Supabase MCP
-access this or the prior session.**
+### 3.1 — Apply migration 0022 to the live database 🔑 ✅ RESOLVED 2026-08-15 (for real this time)
+**Original "DONE 2026-08-10" claim was false — now definitively proven and fixed.** Supabase
+re-authorized 2026-08-15; queried the live "Techscape AI" project directly and confirmed
+`travel_leads` has no `email` column, exactly matching this repo's schema. `0022` is recorded in
+`supabase_migrations.schema_migrations` despite its SQL being provably unable to execute against
+this schema — it went unnoticed because `travel_leads`/`payment_links` were both completely empty
+(0 rows) at the time, so nothing ever hit the broken UPDATE with data present.
 
-**Fix written, not yet applied**: `0025_travel_leads_phone_backfill_corrective.sql` — 0022 itself
-is left untouched (never edit an applied migration); 0025 performs 0022's one genuinely new piece
-(phone-based `travel_leads.customer_id` backfill) standalone. 0022's Step 3 (payment_links
-backfill) was already redundant with `0021`; Step 4 (index) recovered separately in `0024`.
-**Before applying 0025, check `information_schema.columns` for `travel_leads` on the live project**
-— if it turns out to already have an `email` column, that changes the diagnosis entirely.
+**Applied live**: `0023_whatsapp_sessions.sql` (also never actually live despite being marked
+RESOLVED on 2026-08-10 — same root cause, no authenticated access existed until today),
+`0024_travel_leads_business_customer_index.sql`, and `0025_travel_leads_phone_backfill_corrective.sql`
+(0022 itself left untouched — never edit an applied migration). All three verified: RLS enabled +
+zero anon/authenticated grants on `whatsapp_sessions` (proven via an `anon`-role probe), the new
+index has the exact intended definition, the backfill correctly matched/skipped test rows run
+through the local seam first and is idempotent (0 rows affected live, both tables still empty).
+
+**Also found while in there** — see BLK-13: three live tables (`contact_submissions`,
+`gogaga_leads`, `gogaga_sessions`) carry overly-broad anon/authenticated grants. Currently not
+exploitable (RLS's zero-policy default-deny is holding, proven with a corrected probe after an
+initial script bug produced a false "leak" — caught before reporting it), but `gogaga_leads`/
+`gogaga_sessions` are undocumented tables with no migration file anywhere in this repo and
+PII-shaped columns. Needs Gowtham's input before any grant change (unclear if still in use).
 
 ### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 ✅ (closes B-P4-06)
 **DONE 2026-08-10.** Ran `scripts/access_matrix.py` + `scripts/regression_check.sh` against live Supabase. All 44 tables confirmed denying anon access. RLS enforcement verified, zero regression. Cross-phase access-matrix sweep (B-P4-06) complete.
@@ -189,6 +197,21 @@ backfill) was already redundant with `0021`; Step 4 (index) recovered separately
 > (traveller-facing, OTP-based identity) but `B-FE7-01`'s own row was never flipped —
 > `BLOCKERS.md` should mark it RESOLVED-by-B-FE7-02/03 the next time that file is touched. Not a
 > live blocker; `B-FE7-08` above is the one genuinely open piece of the traveller-identity question.
+
+### 3.4 — Tighten anon/authenticated grants on 3 live tables (BLK-13) 🚦
+**Found 2026-08-15**, while verifying migrations directly against live Supabase. `contact_submissions`,
+`gogaga_leads`, and `gogaga_sessions` carry full anon/authenticated grants (INSERT/SELECT/UPDATE/
+DELETE/TRUNCATE/REFERENCES/TRIGGER). **Not currently exploitable** — verified with a corrected
+`anon`-role probe that all three return 0 rows to `anon` (RLS enabled, zero policies, Postgres
+default-deny) — but fragile: the grants alone become live the moment anyone adds a permissive
+policy without first narrowing them. `gogaga_leads`/`gogaga_sessions` are also undocumented —
+no migration file anywhere in this repo creates them, yet both hold PII-shaped columns (phone,
+name, email, chat messages/context).
+**Decision needed:** are `gogaga_leads`/`gogaga_sessions` still used by anything (an earlier
+prototype? a no-code tool writing via the anon key)? Revoking blind risks breaking a dependency
+with no visibility from this repo. Once confirmed unused (or migrated), `REVOKE ALL ... FROM anon,
+authenticated` on all three, and if `contact_submissions` needs anon access at all, narrow it to
+`GRANT INSERT` only.
 
 ---
 
@@ -342,7 +365,6 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 | DEBT-15 | Five spec'd WS message types are never emitted — see [2.6](#26--fix-the-ws-contract-drift-before-any-dashboard-is-built-against-it-debt-05-). `whisper`'s own dead scaffolding (`WhisperMessage`, `whispers` field) was removed from agency-dashboard in the 2026-08-15 audit fix — the remaining four (`speaking`/`intent`/`event`/`extraction`) were never given interfaces at all, so there's nothing left to remove for them |
 | B-P3-08 | Root `.env.example` is missing 14 fields `api/.env.example` already has (incl. `REDIS_URL`) — sync it |
 | B-SPRINT2B-02 | `fastembed`'s model can't download in this sandbox (proxy blocks `huggingface.co`) — pre-bake the ONNX weights into the sandbox image, or allowlist the host |
-| B-P4DB-01 | `idx_travel_leads_customer` collision: 0021 and 0022 both used that index name with incompatible definitions, so 0022's never took effect. Recovered under a new name in migration `0024` (`idx_travel_leads_business_customer`) — **not yet applied to live Supabase**, this session had no authenticated Supabase MCP access |
 
 **Resolved and removed from this table in the 2026-08-15 audit fix** (kept here so the count above stays honest — full detail in `BLOCKERS.md`): DEBT-08 (audio-loss-on-disconnect), DEBT-10 (WhatsApp session state → Postgres), DEBT-13 (TakeoverState duplication), DEBT-17 (localStorage key namespacing, already closed at 0.1) — all four were still showing OPEN/DEBT in `BLOCKERS.md` despite being fully fixed in code; a full-repo validation audit caught the drift and this file + `BLOCKERS.md` were corrected together.
 
@@ -384,8 +406,9 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P3-06 | 2.5 | Per-participant recording URL |
 | B-P3-07 | 10 | Local Colima/Supabase stack for local dev |
 | B-P3-08 | 10 | Root `.env.example` missing 14 fields |
-| B-P4DB-01 | 10 | `idx_travel_leads_customer` name collision (0021 vs 0022) — recovered under a new name in migration 0024, not yet applied live |
-| B-P4DB-02 | 3.1 | 0022's Step 1 references a nonexistent column, retracting the "applied clean" claim — corrective migration 0025 written, not yet applied live |
+| B-P4DB-01 | 10 ✅ | `idx_travel_leads_customer` name collision (0021 vs 0022) — RESOLVED, recovered under a new name in migration 0024, applied live 2026-08-15 |
+| B-P4DB-02 | 3.1 ✅ | 0022's Step 1 references a nonexistent column, retracting the "applied clean" claim — RESOLVED, corrective migration 0025 applied live 2026-08-15 |
+| BLK-13 | 3.4 | Overly-broad anon/authenticated grants on 3 live tables (contact_submissions, gogaga_leads, gogaga_sessions) — not currently exploitable, but needs Gowtham's input before any grant change |
 | B-P4-01 | 1.7, 4.1 | Razorpay credentials + one human-confirmed real link |
 | B-P4-02 | 1.8, 4.2 | WhatsApp credentials + one human-confirmed real send |
 | B-P4-03 | 4.5 | PDF rendering library decision |
