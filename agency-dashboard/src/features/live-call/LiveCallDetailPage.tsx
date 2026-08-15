@@ -6,11 +6,13 @@
  *     screen opened. Fetched once.
  *   - The WS feed carries everything from now on.
  *
- * They are concatenated, not merged-and-deduplicated, because the backend gives
- * us no reliable key to dedupe on: `seq` is hardcoded to 1 at its only emit
- * site, so it cannot identify a line. The seam is therefore drawn by TIME — WS
- * lines older than the seed's newest are dropped — and the small overlap risk is
- * accepted rather than papered over with a fake identity.
+ * They are concatenated, not merged-and-deduplicated. `seq` is genuinely
+ * monotonic per call now (both emit sites derive it from the real transcript
+ * count via `_next_seq()` — the old hardcoded `seq: 1` is fixed), but frames
+ * recorded before that fix still carry the old value, so identity-based dedupe
+ * against history remains unsafe. The seam is therefore drawn by TIME — WS
+ * lines older than the seed's newest are dropped — and the small overlap risk
+ * is accepted rather than papered over with a fake identity.
  */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
