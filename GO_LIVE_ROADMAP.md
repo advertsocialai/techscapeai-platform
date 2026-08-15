@@ -50,7 +50,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [7](#phase-7--multi-tenant-real-test) | Prove isolation against a real second agency | 3 | 🚦🏢 |
 | [8](#phase-8--marketing-site-new-scope) | The `frontend/` site CLAUDE.md describes | 1 | 🚦 (new scope) |
 | [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 0 remaining (2 DONE) | ✅ |
-| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 5 | 🛠️ |
+| [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 4 | 🛠️ |
 
 **42 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
 actionable immediately in any session; Phase 10 is real but does not block go-live.
@@ -388,7 +388,7 @@ Real, tracked, does **not** block go-live. Burn down opportunistically.
 | DEBT-12 | Recorded intentionally: Plivo verifier fails OPEN when unset, Razorpay fails CLOSED — if ever "unified", go closed, never open |
 | DEBT-14 | *(Already fixed — `vite.config.ts` `/ws` proxy entry added.)* |
 | DEBT-15 | Five spec'd WS message types are never emitted — see [2.6](#26--fix-the-ws-contract-drift-before-any-dashboard-is-built-against-it-debt-05-). `whisper`'s own dead scaffolding (`WhisperMessage`, `whispers` field) was removed from agency-dashboard in the 2026-08-15 audit fix — the remaining four (`speaking`/`intent`/`event`/`extraction`) were never given interfaces at all, so there's nothing left to remove for them |
-| B-P3-08 | Root `.env.example` is missing 14 fields `api/.env.example` already has (incl. `REDIS_URL`) — sync it |
+| B-P3-08 | *(RESOLVED 2026-08-15 — root/API `.env.example` key sets verified identical and complete against `Settings.model_fields`; 12 newly-missing fields (Razorpay/WhatsApp/alerting) appended to both.)* |
 | B-SPRINT2B-02 | `fastembed`'s model can't download in this sandbox (proxy blocks `huggingface.co`) — pre-bake the ONNX weights into the sandbox image, or allowlist the host |
 
 **Resolved and removed from this table in the 2026-08-15 audit fix** (kept here so the count above stays honest — full detail in `BLOCKERS.md`): DEBT-08 (audio-loss-on-disconnect), DEBT-10 (WhatsApp session state → Postgres), DEBT-13 (TakeoverState duplication), DEBT-17 (localStorage key namespacing, already closed at 0.1) — all four were still showing OPEN/DEBT in `BLOCKERS.md` despite being fully fixed in code; a full-repo validation audit caught the drift and this file + `BLOCKERS.md` were corrected together.
@@ -430,7 +430,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P3-05 | 2.4 | Telugu STT/TTS path |
 | B-P3-06 | 2.5 | Per-participant recording URL |
 | B-P3-07 | 10 | Local Colima/Supabase stack for local dev |
-| B-P3-08 | 10 | Root `.env.example` missing 14 fields |
+| B-P3-08 | 10 ✅ | Root `.env.example` field drift — RESOLVED 2026-08-15, both example files verified complete against `Settings.model_fields` |
 | B-P4DB-01 | 10 ✅ | `idx_travel_leads_customer` name collision (0021 vs 0022) — RESOLVED, recovered under a new name in migration 0024, applied live 2026-08-15 |
 | B-P4DB-02 | 3.1 ✅ | 0022's Step 1 references a nonexistent column, retracting the "applied clean" claim — RESOLVED, corrective migration 0025 applied live 2026-08-15 |
 | BLK-13 | 3.4 | Overly-broad anon/authenticated grants on 3 live tables (contact_submissions, gogaga_leads, gogaga_sessions) — not currently exploitable, but needs Gowtham's input before any grant change |
