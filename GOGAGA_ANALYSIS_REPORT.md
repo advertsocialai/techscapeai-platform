@@ -73,6 +73,9 @@ Production deploys, updating row 9 again same day. Prior update: 2026-08-10 at `
 ## Blocker index (detail in BLOCKERS.md)
 
 BLK-1 Plivo creds · BLK-2 service-role key · BLK-3 sandbox network policy ·
-BLK-4 two Vercel Root Directory fields · BLK-5 Actions billing · BLK-6 Sentry
-DSN · BLK-7 backup policy · BLK-8 consent wording legal review · BLK-9
-marketing-site scope · B-FE7-08 agency resolution for the customer app.
+BLK-4 Vercel Root Directory (RESOLVED) · BLK-5 Actions billing (RESOLVED by
+removal) · BLK-6 Sentry DSN · BLK-7 backup policy · BLK-8 consent wording
+legal review · BLK-9 marketing-site scope · BLK-10 JWT secrets hardcoded ·
+BLK-11 six untracked credentials · BLK-12 agency-dashboard Production Branch ·
+BLK-13 grant tightening on 3 live tables · BLK-14 traveller surface regression
+(RESOLVED 2026-08-15) · B-FE7-08 multi-agency traveller lookup (RESOLVED).
