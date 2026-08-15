@@ -102,7 +102,7 @@ specifically so this would be true.
 | 1.11 | 🔑🔒 JWT signing secrets | `JWT_SECRET`, `JWT_REFRESH_SECRET` (BLK-10) | Token integrity, every route in both `techscape` and `travel` | **Currently hardcoded to `"change-me-in-prod"` / `"change-me-too-in-prod"`** — a real security hole, not just a stub, since anyone who knows the default can forge a valid token against any environment that never overrode it. Found in a full-repo audit; was untracked anywhere before 2026-08-15 |
 | 1.12 | 🔑 Email + TechScape workflow-platform channels | `SENDGRID_API_KEY`/`RESEND_API_KEY` (email), `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_PHONE_NUMBER`/`TWILIO_WEBHOOK_AUTH_TOKEN`, `WAPI_API_TOKEN`/`WAPI_WEBHOOK_SECRET`, `FERNET_KEY` (BLK-11) | Contact-form notifications, auth password-reset email, the TechScape Workflow Platform's own SMS/WhatsApp channels (a separate credential set from GoGaga's Plivo/WhatsApp above), and at-rest encryption of stored integration credentials | All eight are already declared `Settings` fields — genuine "add credential, no code change" unlocks, same pattern as the rest of Phase 1. `FERNET_KEY` empty ⇒ derives from `JWT_SECRET`, explicitly marked DEV-only in its own comment. Found untracked in a full-repo audit, 2026-08-15 |
 
-**Verification after each addition:** `scripts/regression_check.sh` (the floor check — login +
+**Verification after each addition:** `.claude/skills/gogaga-verifier/scripts/regression_check.sh` (the floor check — login +
 one authenticated GET), then the credential-specific test named in its BLOCKERS.md row above.
 
 ---
@@ -187,7 +187,7 @@ initial script bug produced a false "leak" — caught before reporting it), but 
 PII-shaped columns. Needs Gowtham's input before any grant change (unclear if still in use).
 
 ### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 ✅ (closes B-P4-06)
-**DONE 2026-08-10, re-verified 2026-08-15.** Ran `scripts/access_matrix.py` + `scripts/regression_check.sh`
+**DONE 2026-08-10, re-verified 2026-08-15.** Ran `.claude/skills/gogaga-verifier/scripts/access_matrix.py` + `.claude/skills/gogaga-verifier/scripts/regression_check.sh`
 against live Supabase on 2026-08-10. Re-swept directly via SQL on 2026-08-15 (table count has grown to
 **45**, not 44, since — `whatsapp_sessions` was added): 42/45 tables deny `anon` via `REVOKE`; the
 remaining 3 (`contact_submissions`, `gogaga_leads`, `gogaga_sessions`) deny via RLS's zero-policy
@@ -331,7 +331,7 @@ Verified directly against live Supabase: `0018_tenant_b_fixture` IS in
 `supabase_migrations.schema_migrations`, and the fixture data is fully present — business
 `regression-fixture-tenant-b`, 1 branch, all 4 role users (agent/manager×2/viewer), 1 distinct
 `travel_ai_config` row. The data precondition for the 5-role × 2-tenant sweep is complete.
-**What's still genuinely missing**: the sweep itself (`scripts/access_matrix.py`) needs to hit the
+**What's still genuinely missing**: the sweep itself (`.claude/skills/gogaga-verifier/scripts/access_matrix.py`) needs to hit the
 *live deployed API* over HTTP to exercise real request/response isolation — this sandbox's network
 egress is blocked to the Vercel deployment URLs (confirmed earlier this session), so the actual
 run still hasn't happened. Whoever has that access just needs to run the script; the data is ready.
