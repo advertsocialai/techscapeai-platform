@@ -7,8 +7,9 @@ compliance detail in `COMPLIANCE_CHECKLIST.md`, and every blocker ID in
 `BLOCKERS.md`.
 
 Last updated: **2026-08-15** — 13-agent full-repo validation audit corrected rows 1 (DB) and 9
-(Deployment), both previously overstated. Prior update: 2026-08-10 at `cc58803` (wave-2
-push-to-100 run).
+(Deployment), both previously overstated; `main` then fast-forwarded to `Klara-ai` and 2/3 Vercel
+projects moved to genuine Production deploys, updating row 9 again same day. Prior update:
+2026-08-10 at `cc58803` (wave-2 push-to-100 run).
 
 > **The caveat, rewritten 2026-08-10 — data HAS now travelled Postgres→screen.**
 > A local Postgres 16 + pgvector with the real migrations, bridged to the
