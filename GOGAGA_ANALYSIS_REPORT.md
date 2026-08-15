@@ -6,10 +6,14 @@ narrative evidence behind each number lives in `PLATFORM_STATUS.md`, the
 compliance detail in `COMPLIANCE_CHECKLIST.md`, and every blocker ID in
 `BLOCKERS.md`.
 
-Last updated: **2026-08-15** — 13-agent full-repo validation audit corrected rows 1 (DB) and 9
-(Deployment), both previously overstated; `main` then fast-forwarded to `Klara-ai` and 2/3 Vercel
-projects moved to genuine Production deploys, updating row 9 again same day. Prior update:
-2026-08-10 at `cc58803` (wave-2 push-to-100 run).
+Last updated: **2026-08-15** — full component-by-component re-validation pass corrected rows 2
+(Backend), 3 (UI), 4 (Auth), and 6 (Backend testing): discovered `customer-app`'s traveller OTP
+login is completely broken live (**BLK-14**, production-blocking) and that the "green" backend
+test suite actually has 12/250 failing tests (same root cause as BLK-14). Earlier same day: a
+13-agent full-repo validation audit corrected rows 1 (DB) and 9 (Deployment), both previously
+overstated; `main` then fast-forwarded to `Klara-ai` and 2/3 Vercel projects moved to genuine
+Production deploys, updating row 9 again same day. Prior update: 2026-08-10 at `cc58803`
+(wave-2 push-to-100 run).
 
 > **The caveat, rewritten 2026-08-10 — data HAS now travelled Postgres→screen.**
 > A local Postgres 16 + pgvector with the real migrations, bridged to the
@@ -24,17 +28,26 @@ projects moved to genuine Production deploys, updating row 9 again same day. Pri
 > behaviors, and PostgREST beyond the shim's measured subset — those still
 > wait on BLK-2/BLK-3. "Live ✅ (seam)" below means proven locally end-to-end;
 > "Live ✅" without qualifier means proven on the deployed/managed stack.
+>
+> **Correction, 2026-08-15 — the "traveller OTP login" leg of this claim no
+> longer holds.** A full re-validation sweep found `customer-app` calls two
+> endpoints (`/travel/v1/me/auth/request-otp`, `/travel/v1/me/auth/verify-otp`)
+> that do not exist on the live-committed backend — only a single combined
+> `POST /login` does. The seam proof above was evidently run against a
+> frontend/backend pairing that has since drifted apart and was never
+> reconciled with what's actually committed. See **BLK-14** — this is a real,
+> currently-broken flow, not a stale doc.
 
 ## All areas — one table
 
 | # | Area | Dashboard | Customer app | Live-verified? | What's missing / blocker |
 |--:|---|---:|---:|:--:|---|
 | 1 | DB | **100%** | **100%** | ✅ Supabase re-authorized 2026-08-15; live-verified directly | 2026-08-15: confirmed on the LIVE project (not just the repo schema) that `travel_leads` has no `email` column, and that `0022` is recorded as applied in `supabase_migrations.schema_migrations` despite the committed file being provably unable to succeed against this schema — the "applied clean" claim was false from the start (both `travel_leads` and `payment_links` were empty at the time, which is why no error was ever noticed). Applied `0023` (whatsapp_sessions — also never actually live despite being marked RESOLVED), `0024` (index), and `0025` (corrective phone backfill) directly via Supabase MCP; all three verified: RLS enabled + zero anon/authenticated grants on `whatsapp_sessions` (proven via an `anon`-role probe, not assumed), the new index has the exact intended definition, the backfill correctly matched/skipped test rows and is idempotent. Full-schema RLS sweep: 45/45 public tables have RLS enabled, 0 missing. Also found (see BLOCKERS.md BLK-13): `gogaga_leads`/`gogaga_sessions`/`contact_submissions` carry overly-broad anon/authenticated grants (undocumented tables with no migration file, PII-shaped columns) — currently harmless (proven: 0 rows visible to `anon`, RLS's zero-policy default-deny is holding), but fragile hygiene worth tightening |
-| 2 | Backend | **97%** | **100%** | ✅ (seam) rows served end-to-end | −3 dashboard: audio produced, not transmitted (BLK-1). Customer −15 CLOSED: traveller path proven against real Postgres (OTP login → `/me/trip` → real booking) |
-| 3 | UI | **95%** | **100%** | ✅ (seam) both UIs rendered real rows; customer deploys Ready, dashboard deploy red (BLK-4) | Wave-1's "1 feature not on the API" was a wording bug — the 13th is `layout`, correctly a shell. Marker 1 (hardcoded ws `seq:1`) FIXED — both emit sites now real-monotonic. Marker 2 (live-call audio UI) stays: BLK-1. Customer: null-dates-as-1/1/1970 bug found by real data, fixed |
-| 4 | Auth | **100%** | **100%** | ✅ (seam) real logins | The wave-1 deduction ("no login against a real DB") closed: owner signup+login and traveller OTP login both exercised against real Postgres rows; cross-token separation 401 live; guards verified in Chromium |
+| 2 | Backend | **97%** | **70%** | ✅ (seam) dashboard rows served end-to-end; ❌ customer-app traveller login path currently 404s live | −3 dashboard: audio produced, not transmitted (BLK-1). **Corrected 2026-08-15, customer −30**: the earlier "traveller path proven against real Postgres" claim no longer holds — `customer-app` calls two OTP endpoints (`/travel/v1/me/auth/request-otp`, `/verify-otp`) that don't exist on the committed backend; only a single combined `POST /login` does. Every real traveller login 404s. See **BLK-14** |
+| 3 | UI | **95%** | **100%** | ✅ (seam) both UIs rendered real rows; both deploy Ready (BLK-4 resolved), but agency-dashboard's Production Branch setting isn't `main` (BLK-12) | **Corrected 2026-08-15**: this row's "dashboard deploy red (BLK-4)" was stale — BLK-4 (Root Directory misconfig) resolved 2026-08-10, agency-dashboard deploys Ready same as everything else; the row 9/seam-table's current BLK-12 (Production Branch not set to `main`) is the real live issue. Wave-1's "1 feature not on the API" was a wording bug — the 13th is `layout`, correctly a shell. Marker 1 (hardcoded ws `seq:1`) FIXED — both backend emit sites verified real-monotonic (frontend still carries a couple of stale explanatory comments describing the old behavior, harmless but worth a pass). Marker 2 (live-call audio UI) stays: BLK-1. Customer: null-dates-as-1/1/1970 bug found by real data, fixed |
+| 4 | Auth | **100%** | **70%** | ✅ (seam) dashboard real logins; ❌ customer-app traveller OTP login broken | Dashboard: owner signup+login exercised against real Postgres rows, cross-token separation 401 live, guards verified in Chromium. **Corrected 2026-08-15, customer −30**: the earlier "traveller OTP login...exercised against real Postgres" claim was against a frontend/backend pairing that has since drifted — the frontend's two-step OTP calls hit endpoints that don't exist on the committed backend. See **BLK-14**, production-blocking, needs Gowtham's decision |
 | 5 | Validation | **100%** | **100%** | — | Scoring rule: every auth AND money/duration input validated client-side with rules that MIRROR the server, and server models mirror DB CHECKs. Server already rejected bad amounts (validator, 422 — a wave-2 claim to the contrary was corrected before push); closed this run: PaymentLinks + Packages forms now validate client-side (amount gt 0; price ge 0 mirroring the server; days integer ≥1), gt=0 surfaced into the OpenAPI schema |
-| 6 | Backend testing | **100%** | **100%** | n/a (local) | Scoring rule (api/tests/COVERAGE_RULE.md): offline suite green + ALL 45 router modules exercised via TestClient success+failure + core/deps ≥90% (92%) + money logic behavior-tested + the real line-coverage number stated honestly: **54%** (uncovered = AI/report/provider adapters needing live creds, out of scope). 250 tests (was 80) |
+| 6 | Backend testing | **95%** | **95%** | n/a (local) | **Corrected 2026-08-15**: the "offline suite green" claim was false — actually running `pytest tests/` shows **12 of 250 tests failing** (238 passing), not the claimed full green. All 12 share one root cause: `test_router_surface.py`'s and `test_public_rate_limit.py`'s traveller-OTP tests target `/travel/v1/me/auth/request-otp`, the same nonexistent endpoint behind **BLK-14** — this is a real product bug the suite correctly caught, not test staleness. Scoring rule (api/tests/COVERAGE_RULE.md) otherwise holds: ALL 45 router modules exercised via TestClient success+failure + core/deps ≥90% (92%) + money logic behavior-tested + line coverage **54%** (uncovered = AI/report/provider adapters needing live creds, out of scope). 250 tests (was 80); −5 until the suite is actually green |
 | 7 | Frontend testing | **100%** | **100%** | n/a (local) | Scoring rule (customer-app/src/TESTING_RULE.md): critical flows have component/interaction tests + contract-pinned units; NOT claiming E2E vs a real backend. customer-app 31 tests (traveller login, OTP boxes incl. paste/focus/aria), dashboard 39 (login incl. 422-array regression, takeover machine matrix, TakeoverControls incl. no-optimistic-flip + 409) |
 | 8 | Rate limiting / abuse | **100%** | **100%** | ✅ (seam) 2-process Redis trip proven | −10 CLOSED: limiter uses Redis (sorted-set sliding window, atomic pipeline) when REDIS_URL set, in-memory fallback otherwise (same graceful-degradation pattern as call_feed). Multi-worker proof: two separate processes share one budget — combined 11th request 429s. 6 new tests incl. dead-Redis fallback |
 | 9 | Deployment | **90% — 2/3 live on Production** | same | ✅ `techscapeai-platform` + `klara-customer-app` confirmed `Ready` on `target: "production"`, real domains; ⚠️ `agency-dashboard` still preview-only | 2026-08-15: `main` fast-forwarded to `Klara-ai` (113 commits) per Gowtham's go-ahead. `techscapeai-platform` and `klara-customer-app` immediately picked this up as a real Production deploy — `techscapeai-platform.vercel.app` and `stagingklara.techscapeai.in` now serve current code. `agency-dashboard`'s latest deployment from the same push still shows `target: null` — its Vercel Production Branch setting is not `main` (BLK-12), a dashboard-only fix; no API/MCP tool this session can read or set it |

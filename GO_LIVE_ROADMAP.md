@@ -43,7 +43,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [0](#phase-0--access--platform-prerequisites) | Unblock the environment itself | 0 remaining (3 DONE) | ✅ |
 | [1](#phase-1--credentials-the-one-time-unlock) | One `.env` pass unlocks 8 downstream phases | 12 | 🔑 |
 | [2](#phase-2--voice-pipeline-go-live) | A real phone call, end to end | 7 | 🔑 (built on Phase 1) |
-| [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 1 remaining (3 DONE) | 🚦 |
+| [3](#phase-3--data-path-go-live-managed-supabase) | Managed Supabase serving real rows | 2 remaining (3 DONE) | 🚦 |
 | [4](#phase-4--payments--messaging-go-live) | Real money, real WhatsApp | 6 | 🔑💰💬🚦 |
 | [5](#phase-5--deploys--ci-go-live) | Green deploys, green CI | 0 remaining (2 DONE) | ✅ |
 | [6](#phase-6--compliance--legal) | Legally defensible consent + policy docs | 4 | 🚦 (legal review) |
@@ -52,7 +52,7 @@ time, by anyone, right now. Phase 10 is the non-blocking debt backlog — real, 
 | [9](#phase-9--zero-credential-code-fixes-do-these-anytime) | Fixes needing nothing from Gowtham | 0 remaining (2 DONE) | ✅ |
 | [10](#phase-10--technical-debt-backlog-non-blocking) | Hardening backlog, not go-live blocking | 5 | 🛠️ |
 
-**41 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
+**42 tracked items total.** Phases 0–8 gate on Gowtham (credentials or decisions); Phase 9 is
 actionable immediately in any session; Phase 10 is real but does not block go-live.
 
 ---
@@ -187,7 +187,13 @@ initial script bug produced a false "leak" — caught before reporting it), but 
 PII-shaped columns. Needs Gowtham's input before any grant change (unclear if still in use).
 
 ### 3.2 — Re-prove RLS-as-anon on the live stack 🔑 ✅ (closes B-P4-06)
-**DONE 2026-08-10.** Ran `scripts/access_matrix.py` + `scripts/regression_check.sh` against live Supabase. All 44 tables confirmed denying anon access. RLS enforcement verified, zero regression. Cross-phase access-matrix sweep (B-P4-06) complete.
+**DONE 2026-08-10, re-verified 2026-08-15.** Ran `scripts/access_matrix.py` + `scripts/regression_check.sh`
+against live Supabase on 2026-08-10. Re-swept directly via SQL on 2026-08-15 (table count has grown to
+**45**, not 44, since — `whatsapp_sessions` was added): 42/45 tables deny `anon` via `REVOKE`; the
+remaining 3 (`contact_submissions`, `gogaga_leads`, `gogaga_sessions`) deny via RLS's zero-policy
+default rather than `REVOKE`, proven with a real `anon`-role probe (0 rows visible on all three,
+not merely assumed from the grant list) — see BLK-13 for why those 3 still need a grant tightening
+pass even though nothing is currently exploitable. RLS enforcement holds; zero regression.
 
 ### 3.3 — Resolve multi-agency traveller lookup (B-FE7-08) ✅
 **RESOLVED 2026-08-10.** Implemented subdomain-per-agency architecture. Created `api/app/routers/travel/traveller.py` with public OTP login endpoint (`POST /travel/v1/traveller/login`) that scopes `travel_customer_profiles` lookup to `(business_id, email)` via `CustomerMemoryService.find_by_email()`. Business ID is currently passed as a query parameter; subdomain→business_id mapping is a TODO for future implementation (placeholder function `_extract_business_id_from_subdomain()` added for the swap). Traveller token carries `role="traveller"` to enforce read-only access and prevent cross-agency profile leakage.
@@ -212,6 +218,27 @@ prototype? a no-code tool writing via the anon key)? Revoking blind risks breaki
 with no visibility from this repo. Once confirmed unused (or migrated), `REVOKE ALL ... FROM anon,
 authenticated` on all three, and if `contact_submissions` needs anon access at all, narrow it to
 `GRANT INSERT` only.
+
+### 3.5 — Fix the traveller OTP login contract break (BLK-14) 🚦
+**Found 2026-08-15**, in a full re-validation sweep. `customer-app`'s traveller login is completely
+broken end-to-end — `travellerApi.ts` calls `POST /travel/v1/me/auth/request-otp` and
+`POST /travel/v1/me/auth/verify-otp`; neither exists anywhere on the backend, confirmed by
+enumerating every live FastAPI route. The only real traveller-auth endpoint is a single combined
+`POST /login` (email + OTP code + business_id in one call, `api/app/routers/travel/traveller.py`),
+mounted twice (`/traveller/login`, `/me/login`) from the same function — a genuinely different
+one-step contract than the two-step UX the frontend was built against. `test_router_surface.py`'s
+`travel.traveller` test targets the same nonexistent path and has been silently failing. This
+directly contradicts every earlier claim that traveller OTP login was "proven end-to-end" (this
+file's own top caveat, `GOGAGA_ANALYSIS_REPORT.md` rows 2/4, `B-FE7-02`/`03`/`08`'s RESOLVED
+notes) — those were evidently proven against a frontend/backend pairing that has since drifted
+apart, never reconciled with what's actually committed.
+**Decision needed** (production-blocking — every real traveller hitting this today gets a 404):
+(a) add the two missing endpoints (`request-otp` as a thin wrapper over the existing
+`techscape/v1/auth/otp/send` logic scoped to travellers, `verify-otp` issuing the traveller token
+via `traveller_login`'s existing logic) to match what the frontend already expects — lower risk,
+keeps the current two-step OTP UX; or (b) rewrite `travellerApi.ts`/`TravellerLoginPage.tsx` to
+call the existing single-step `/me/login` — no new backend code, but collapses the two-step form
+into one. Either way, fix `test_router_surface.py`'s stale route reference. Gowtham decides.
 
 ---
 
@@ -305,11 +332,16 @@ Phase 9 since they're actionable immediately.
 
 ## Phase 7 — Multi-tenant real test
 
-### 7.1 — Apply the Tenant-B fixture migration to a live DB (B-P5-02) 🔑
-Depends on **0.1**. Migration `0018` (synthetic second-agency fixture: real business, branch, 4
-role users, a reserved non-dialable phone number, a deliberately different `ai_config`) is written
-but never applied to a live database. Apply it, then run `scripts/access_matrix.py` for the real
-5-role × 2-tenant sweep.
+### 7.1 — Apply the Tenant-B fixture migration to a live DB (B-P5-02) 🔑 ⚠️ PARTIALLY DONE
+**Corrected 2026-08-15.** This row said migration `0018` was "written but never applied" — false.
+Verified directly against live Supabase: `0018_tenant_b_fixture` IS in
+`supabase_migrations.schema_migrations`, and the fixture data is fully present — business
+`regression-fixture-tenant-b`, 1 branch, all 4 role users (agent/manager×2/viewer), 1 distinct
+`travel_ai_config` row. The data precondition for the 5-role × 2-tenant sweep is complete.
+**What's still genuinely missing**: the sweep itself (`scripts/access_matrix.py`) needs to hit the
+*live deployed API* over HTTP to exercise real request/response isolation — this sandbox's network
+egress is blocked to the Vercel deployment URLs (confirmed earlier this session), so the actual
+run still hasn't happened. Whoever has that access just needs to run the script; the data is ready.
 
 ### 7.2 — 🏢 Plivo Reseller application for a real second tenant (B-P5-03)
 **This is not code, and Claude Code must never submit this.** Real KYC, a real contract, a real
@@ -409,6 +441,7 @@ Every active (non-RESOLVED) ID in `BLOCKERS.md` must appear somewhere in this fi
 | B-P4DB-01 | 10 ✅ | `idx_travel_leads_customer` name collision (0021 vs 0022) — RESOLVED, recovered under a new name in migration 0024, applied live 2026-08-15 |
 | B-P4DB-02 | 3.1 ✅ | 0022's Step 1 references a nonexistent column, retracting the "applied clean" claim — RESOLVED, corrective migration 0025 applied live 2026-08-15 |
 | BLK-13 | 3.4 | Overly-broad anon/authenticated grants on 3 live tables (contact_submissions, gogaga_leads, gogaga_sessions) — not currently exploitable, but needs Gowtham's input before any grant change |
+| BLK-14 | 3.5 | customer-app traveller OTP login is completely broken — frontend calls two endpoints that don't exist on the backend; needs Gowtham's decision between adding the missing endpoints or rewriting the frontend to the existing single-step endpoint |
 | B-P4-01 | 1.7, 4.1 | Razorpay credentials + one human-confirmed real link |
 | B-P4-02 | 1.8, 4.2 | WhatsApp credentials + one human-confirmed real send |
 | B-P4-03 | 4.5 | PDF rendering library decision |
