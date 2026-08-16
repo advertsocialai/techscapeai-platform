@@ -58,6 +58,29 @@ Production deploys, updating row 9 again same day. Prior update: 2026-08-10 at `
 | 13 | Compliance | **90% (mechanisms 100%)** | **90% (mechanisms 100%)** | — | All 3 buildable gaps CLOSED: consent event row written when answer XML is served; DPDP erasure endpoint anonymizes 10 tables (money kept, activity_log'd, 409 on edge cases); ToS/Privacy DRAFT skeletons with schema-derived facts. The remaining 10 is not code: legal wording + 4 decisions (BLK-8, C-4, D-6) |
 | 14 | Docs / secrets | **95% (mechanism 100%)** | **95% (mechanism 100%)** | — | CLAUDE.md reconciled; secrets audit clean; scoreboard self-maintenance automated. Backup MECHANISM built (`scripts/backup_db.sh` + BACKUP_OPTIONS.md) — BLK-7 is now a one-line A/B/C choice plus one restore drill, the only remaining 5 |
 
+## What's left to 100 — every remaining gap, titled, with the one scenario that closes it
+
+**As of 2026-08-15, 9 of 14 components are a genuine 100/100 and every remaining gap is
+non-code**: after the BLK-14 fix loop, there is no line of code anyone can write in this repo
+that moves any number below. Each row here names the component, the motive for the deduction,
+and the exact scenario that closes it. Anything not listed is done.
+
+| # | Component | At | Motive for the deduction | The ONE closing scenario | Who |
+|--:|---|---:|---|---|---|
+| 2 | Backend (dashboard) | 97 | TTS audio is produced but never transmitted — no telephony creds | Add Plivo credentials (BLK-1 / Phase 1.1); a real call then plays the AI's reply | Gowtham |
+| 3 | UI (dashboard) | 95 | The live-call audio UI has nothing to play until row 2 closes | Same single scenario as row 2 — BLK-1; no separate UI work exists | Gowtham |
+| 9 | Deployment | 90 | agency-dashboard is the 1-of-3 project still deploying preview-only | Set its Vercel **Production Branch** to `main` — one dashboard click (BLK-12); no API can do it | Gowtham |
+| 10 | CI/CD | manual | Actions removed over runner billing; Vercel builds gate deploys instead | Decide: restore `.github.backup/workflows/ci.yml` once billing is resolved (zero code changes), or declare Vercel-gating the permanent answer and close BLK-5's remnant | Gowtham |
+| 11 | Observability | stub-complete | Events/alerts are counted in-process; nothing leaves the box | Set `SENTRY_DSN` + `VITE_SENTRY_DSN` and install the two SDK packages (BLK-6 / Phase 1.9) | Gowtham |
+| 13 | Compliance | 90 | Mechanisms are 100% built; the remaining 10 is words, not code | Legal signs off consent wording + ToS/Privacy `[LEGAL TO COMPLETE]` sections (BLK-8, D-1) | Legal + Gowtham |
+| 14 | Docs / secrets | 95 | Backup mechanism built; no policy chosen, no restore ever drilled | Pick A/B/C in `scripts/BACKUP_OPTIONS.md` and run one restore drill (BLK-7) | Gowtham |
+
+**The dishonesty guard, stated plainly:** these rows will not be set to 100 in this file until
+their scenario has actually run — this report reached false-100 twice before (Phase 3.1's
+"applied clean", the traveller "proven end-to-end" claim) and both times the correction cost more
+than the honesty would have. Sequencing for the table above lives in `GO_LIVE_ROADMAP.md`
+(Phases 1, 5, 6); full blocker detail in `BLOCKERS.md`.
+
 ## Stubbed vs live — the seams
 
 | Seam | Built | Live? | The one thing to go live |
