@@ -50,13 +50,16 @@ that composer disabled with the reason attached; this file keeps that honest.
 from __future__ import annotations
 
 import logging
+import traceback
 from typing import Any, Optional
 
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, EmailStr, Field
 
+from app.core.config import settings
 from app.core.deps import get_current_traveller
 from app.core.public_rate_limit import enforce as rate_limit
 from app.core.security import TRAVELLER_TOKEN_TTL_MIN, issue_traveller_token
@@ -225,6 +228,27 @@ def request_otp(payload: RequestOtpIn, request: Request) -> dict[str, Any]:
         logger.info("traveller OTP issued for customer=%s", profile["id"])
         if not code:  # pragma: no cover - defensive
             logger.warning("OTP issue returned empty for %s", profile["id"])
+        if settings.RESEND_API_KEY:
+            try:
+                resp = httpx.post(
+                    "https://api.resend.com/emails",
+                    headers={"Authorization": f"Bearer {settings.RESEND_API_KEY}"},
+                    json={
+                        "from": f"Klara <{settings.FROM_EMAIL}>",
+                        "to": [str(payload.email)],
+                        "subject": "Your trip login code",
+                        "html": (
+                            f"<p>Your 6-digit login code is: <strong>{code}</strong></p>"
+                            "<p>This code expires in 5 minutes. If you didn't request this, "
+                            "you can safely ignore this email.</p>"
+                        ),
+                    },
+                    timeout=10,
+                )
+                resp.raise_for_status()
+            except Exception:
+                traceback.print_exc()
+                logger.warning("Failed to send traveller OTP email to %s", payload.email)
     else:
         logger.info("traveller OTP requested for unknown address — no-op")
 
