@@ -1,13 +1,64 @@
 {
-  "model": "claude-sonnet-4-6",
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
-      "Bash(curl *)", "Bash(python *)", "Bash(pytest *)", "Bash(pip install *)",
-      "Bash(find *)", "Bash(grep *)", "Bash(cat *)", "Bash(ls *)",
-      "Bash(uvicorn *)", "Bash(git status)", "Bash(git diff *)",
-      "Bash(git add *)", "Bash(git commit *)"
+      "Bash(curl *)",
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(pip install *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(uvicorn *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ],
-    "deny": ["Bash(rm -rf *)", "Read(.env)", "Read(**/.env*)"]
+    "deny": [
+      "Bash(rm -rf *)",
+      "Read(.env)",
+      "Read(**/.env*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "model": "claude-sonnet-4-6",
+  "enabledPlugins": {
+    "vercel@claude-plugins-official": true,
+    "figma@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "skill-creator@claude-plugins-official": true,
+    "supabase@claude-plugins-official": true,
+    "slack@claude-plugins-official": true,
+    "linear@claude-plugins-official": true,
+    "stripe@claude-plugins-official": true,
+    "firebase@claude-plugins-official": true,
+    "semgrep@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "chrome-devtools-mcp@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "telegram@claude-plugins-official": true,
+    "playground@claude-plugins-official": true,
+    "ui-theme-designer@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "superpowers@superpowers-marketplace": true
+  },
+  "extraKnownMarketplaces": {
+    "ui-ux-pro-max-skill": {
+      "source": {
+        "source": "github",
+        "repo": "nextlevelbuilder/ui-ux-pro-max-skill"
+      }
+    },
+    "superpowers-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "obra/superpowers-marketplace"
+      }
+    }
   }
 }
