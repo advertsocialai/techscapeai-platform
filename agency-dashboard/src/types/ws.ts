@@ -88,14 +88,12 @@ export interface TranscriptMessage {
    * api-conventions.md says `seq` is "monotonically increasing per call (lets
    * the frontend detect gaps after reconnect)". That is now TRUE (wave-2 fix):
    * both emit sites (customer transcript in webhooks_voice.py and AI reply in
-   * voice_turn_service.py) derive seq from the call's real transcript count.
-   * Gap-detection against it is now legitimate, though still optional here.
+   * voice_turn_service.py) derive seq from the call's real transcript count
+   * via `_next_seq()`. Gap-detection against it is now legitimate.
    *
-   * Kept optional in the type because older recorded frames may carry the
-   * historical hardcoded value. Every frame
-   * currently reports seq 1, so any "we missed N messages" logic built on it
-   * would fire constantly and lie to the user. Typed optional so consumers are
-   * forced to handle its absence and are not tempted to trust it.
+   * Kept optional in the type because frames recorded before that fix carry
+   * the old hardcoded `seq: 1` — consumers must handle absence/staleness
+   * rather than assume every historical frame is trustworthy.
    */
   seq?: number
   speaker: TranscriptSpeaker
@@ -124,7 +122,8 @@ export interface SentimentMessage {
   /** FK into `travel_transcripts`. Present in code; absent from the doc. */
   transcript_id: string
   scores: SentimentScores
-  /** The doc claims a `seq` here. The code emits none. Never populated today. */
+  /** Not emitted by sentiment_service.py (and no longer claimed by the doc —
+   *  its corrected sentiment frame has no `seq`). Kept optional for old frames. */
   seq?: number
 }
 

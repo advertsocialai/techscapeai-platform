@@ -26,12 +26,11 @@ from .ai_config   import router as ai_config_router  # Phase 3 T2
 from .packages    import router as packages_router   # Phase 4 T1
 from .payments    import router as payments_router   # Phase 4 T2/T8
 from .whatsapp    import router as whatsapp_router   # Phase 4 T3
-from .traveller   import router as traveller_router  # B-FE7-03 customer-app
+from .traveller   import router as traveller_router  # B-FE7-03 customer-app + P3 T3 (multi-agency)
 from .reports     import router as reports_router    # Phase 4 T4/T5
 from .followups   import router as followups_router  # Phase 4 T6
 from .activity    import router as activity_router   # Phase 4 T7
 from .usage       import router as usage_router      # Phase 4 T9
-from .traveller   import router as traveller_router  # Phase 3 T3 (multi-agency)
 
 
 travel_router = APIRouter(prefix="/travel/v1")
