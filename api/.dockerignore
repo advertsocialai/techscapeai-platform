@@ -1,0 +1,17 @@
+# Keep secrets and local cruft out of the image layer.
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+.git/
+.github/
+*.md
+tests/
