@@ -24,10 +24,25 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://localhost:3000"
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
-        "http://localhost:5173",
+        "http://localhost:5173",          # customer-app / agency-dashboard (Vite)
         "https://techscapeai.com",
         "https://www.techscapeai.com",
+        "https://stagingklara.techscapeai.in",   # klara-customer-app production alias
     ]
+
+    # Vercel mints a NEW hostname for every deployment, so preview origins can
+    # never be enumerated in ALLOWED_ORIGINS. This matches those hostnames for
+    # our three projects only — not *.vercel.app at large, which with
+    # allow_credentials=True would let any Vercel site issue credentialed
+    # requests. Branch aliases (…-git-klara-ai-…) match the same pattern.
+    # Prefixes are deliberately short: Vercel truncates the project name in
+    # per-deployment hostnames, so "klara-customer-app" appears as
+    # "klara-customer-67nev2c5n-…". The mandatory "-advertsocialais-projects"
+    # team suffix is what actually bounds this to our own deployments.
+    ALLOWED_ORIGIN_REGEX: str = (
+        r"^https://(klara|agency|techscape)"
+        r"[a-z0-9-]*-advertsocialais-projects\.vercel\.app$"
+    )
 
     # Supabase (use existing connectors)
     SUPABASE_URL: str

@@ -1,5 +1,6 @@
 # Vercel deploy config for the FastAPI backend (Root Directory = api).
 #
+# ── Entrypoint ────────────────────────────────────────────────────────────
 # Vercel's Python/FastAPI framework detection only auto-accepts an `app`
 # variable in a default entrypoint location (main.py / index.py / app.py at
 # the root directory). Ours lives at app/main.py inside the `app` package, so
@@ -9,15 +10,72 @@
 # Vercel's documented mechanism for a non-default entrypoint
 # (https://vercel.com/docs/frameworks/backend/fastapi).
 #
-# Dependencies intentionally stay in requirements.txt (also supported by the
-# Vercel Python runtime) — no [project] dependencies table here, so local
-# tooling and CI keep a single source of truth for packages.
+# ── Dependencies MUST be declared here, not only in requirements.txt ──────
+# This file previously carried a bare `[project]` table with no dependencies,
+# on the stated assumption that "dependencies remain in requirements.txt"
+# (5e399fc, 2026-08-10). That assumption does not hold on Vercel: the Python
+# build runs `uv`, and once a pyproject.toml with a [project] table exists, uv
+# installs from THAT and ignores requirements.txt entirely. The build reported
+# "Installing required dependencies from pyproject.toml..." and completed in
+# 2 seconds having installed nothing, so every request died at
+# `import fastapi` with FUNCTION_INVOCATION_FAILED — and produced no runtime
+# logs, because the failure happened at module import, before logging was
+# configured. All 23 probed endpoints returned 500.
+#
+# Keep this list in sync with requirements.txt.
+# api/tests/test_dependency_sync.py fails the suite if the two drift.
+#
+# ── Why fastembed is NOT a default dependency ─────────────────────────────
+# fastembed pulls onnxruntime, numpy and tokenizers — hundreds of megabytes,
+# against a serverless bundle size limit. It is imported lazily (inside a
+# function in app/services/travel/embeddings.py), so the API boots and every
+# other route works without it; only wiki semantic search needs it. Container
+# deploys (Docker/Railway) install from requirements.txt and get it. To
+# include it in a Vercel build, install the `embeddings` extra.
 #
 # Full deploy decision + local verification evidence: scripts/DEPLOY_READINESS.md
 
 [project]
 name = "techscapeai-platform"
 version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    # FastAPI + ASGI server
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.32.1",
+
+    # Pydantic
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "pydantic[email]==2.10.4",
+
+    # Supabase
+    "supabase==2.10.0",
+
+    # HTTP client — pinned <0.28 because supabase 2.10.0 requires >=0.26,<0.28.
+    "httpx>=0.26,<0.28",
+
+    # Auth (JWT + password hashing + Fernet encryption)
+    "PyJWT==2.10.1",
+    "passlib[bcrypt]==1.7.4",
+    "bcrypt==4.2.1",
+    "cryptography==44.0.0",
+
+    # Utilities
+    "python-dotenv==1.0.1",
+    "python-multipart==0.0.20",
+
+    # Redis (Phase 3 T8) — call_feed pub/sub + JWT blacklist. Falls back to
+    # in-process/in-memory when REDIS_URL is unset, but the package must be
+    # present for the Redis path to ever engage.
+    "redis==5.2.1",
+]
+
+[project.optional-dependencies]
+# Wiki semantic search (Phase 2 T8) — local embedder, no API key needed.
+embeddings = ["fastembed==0.8.0"]
+# api/tests/ — DB-free smoke suite; see conftest.py
+test = ["pytest==9.1.1", "pytest-cov==7.1.0"]
 
 [tool.vercel]
 entrypoint = "app.main:app"
