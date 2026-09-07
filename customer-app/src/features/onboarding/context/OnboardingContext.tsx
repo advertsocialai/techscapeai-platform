@@ -61,14 +61,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<OnboardingState>(() => {
     try {
       const saved = localStorage.getItem('klara_onboarding_state')
-      return saved ? { ...defaultState, ...JSON.parse(saved) } : defaultState
+      // `password` is deliberately dropped on restore. Nothing writes it any
+      // more (see the effect below), and forcing it empty here also discards
+      // cleartext left in storage by a build from before that change.
+      return saved ? { ...defaultState, ...JSON.parse(saved), password: '' } : defaultState
     } catch {
       return defaultState
     }
   })
 
   useEffect(() => {
-    localStorage.setItem('klara_onboarding_state', JSON.stringify(state))
+    // SEC-1: this used to persist the whole state object verbatim, which put the
+    // signup password in cleartext in localStorage — readable by any script on
+    // the origin, and left behind on shared or kiosk machines after signup. The
+    // password now lives in React state for the length of the wizard and never
+    // reaches disk. Writing '' rather than omitting the key also overwrites any
+    // password a previous build already stored.
+    //
+    // A reload mid-wizard therefore loses it. That is handled, not ignored:
+    // RequireStep treats a missing password as missing identity and sends the
+    // user back to /onboarding/personal-info.
+    localStorage.setItem('klara_onboarding_state', JSON.stringify({ ...state, password: '' }))
   }, [state])
 
   const setPersonalInfo = (data: PersonalInfoData) => {

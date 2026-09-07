@@ -17,9 +17,10 @@ import { useOnboarding } from './context/OnboardingContext'
  * the accidental path — a bookmark, a back button, a shared link — not a
  * deliberate one.
  *
- * The real fix belongs on the server: `RegisterBusinessIn` has no OTP field, so
- * the backend never checks that the address was verified, no matter what the
- * client does. Logged as B-FE7-07 in BLOCKERS.md.
+ * The real guarantee is on the server, and it now exists: /auth/register-business
+ * calls _consume_verified_email() and returns 403 unless /otp/send then
+ * /otp/verify were completed for that address (e263c0b). Forging otpVerified
+ * here gets you to the terms screen and no further. B-FE7-07 is closed.
  * ───────────────────────────────────────────────────────────────────────── */
 type Step = 'address' | 'otp' | 'terms'
 
